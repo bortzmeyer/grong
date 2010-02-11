@@ -22,4 +22,4 @@ dist: clean
 	(cd ..; tar czvf ${TARBALL} grong/*)
 
 clean:
-	rm -f server *~ *.$O *.a
+	rm -f responder.go server *~ *.$O *.a

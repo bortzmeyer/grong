@@ -46,3 +46,4 @@ func Respond(query types.DNSquery) types.DNSresponse {
 }
 
 func init() {}
+

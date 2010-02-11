@@ -48,6 +48,10 @@ func serialize(packet types.DNSpacket) []byte {
 	// Arcount
 	result[10] = 0
 	result[11] = 0
+	if len(packet.Qsection) != 1 {
+		fmt.Printf("Fatal: Qsection's length is not 1: %d\n", len(packet.Qsection))
+		os.Exit(1) // TODO: better handling
+	}
 	encoded_qname := types.Encode(packet.Qsection[0].Qname)
 	last := 0
 	for i, c := range encoded_qname {
@@ -84,9 +88,9 @@ func readShortInteger(buf *bytes.Buffer) uint16 {
 		slice []byte
 	)
 	slice = make([]byte, 2)
-	_, error := buf.Read(slice[0:2])
-	if error != nil {
-		fmt.Printf("Error in Read of an int16: %s\n", error)
+	n, error := buf.Read(slice[0:2])
+	if error != nil || n != 2 {
+		fmt.Printf("Error in Read of an int16: %s (%d bytes read)\n", error, n)
 		os.Exit(1) // TODO: should handle it better?
 	}
 	return binary.BigEndian.Uint16(slice[0:2])
@@ -160,6 +164,7 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 	var (
 		query types.DNSquery
 	)
+	noresponse = true
 	packet := parse(buf)
 	if !packet.Valid { // Invalid packet or client too impatient
 		return
@@ -177,7 +182,7 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 		response.Id = packet.Id
 		response.Query = false
 		response.Opcode = packet.Opcode
-		response.Qdcount = packet.Qdcount
+		response.Qdcount = 1 // Or packet.Qdcount ?
 		response.Qsection = make([]types.Qentry, response.Qdcount)
 		response.Qsection[0].Qname = packet.Qsection[0].Qname
 		response.Qsection[0].Qclass = packet.Qsection[0].Qclass
