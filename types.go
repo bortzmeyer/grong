@@ -1,4 +1,8 @@
-/* Various types and constants for a DNS server. Mostly taken directly from RFC 1035. Various functions for things like encoding */
+/* Various types and constants for a DNS server. 
+   Mostly taken directly from RFC 1035. 
+   Various functions for things like encoding.
+   TODO: replace them by things from package net/? 
+   <http://golang.org/src/pkg/net/dnsmsg.go> */
 
 package types
 

@@ -113,6 +113,9 @@ just means firing several udpListeners and several tcpListeners
 
 Test with gccgo
 
+See if we can replace a good part of package "types" by standard
+package net/ <http://golang.org/src/pkg/net/dnsmsg.go>
+
 DNSSEC (no, I'm joking)
 
 
