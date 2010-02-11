@@ -116,6 +116,8 @@ Test with gccgo
 See if we can replace a good part of package "types" by standard
 package net/ <http://golang.org/src/pkg/net/dnsmsg.go>
 
+Daemonize <http://groups.google.com/group/golang-nuts/browse_thread/thread/2b29d93b90501a4b/95242bfb7ae0549e>
+
 DNSSEC (no, I'm joking)
 
 
