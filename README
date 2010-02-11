@@ -18,6 +18,8 @@ back-ends (named "responders") which generates a response, given the
 query. Some are provided with GRONG and you are welcome to write
 others.
 
+The official source is <http://github.com/bortzmeyer/grong>
+
 Usage
 *****
 
@@ -82,8 +84,6 @@ are behind BIND.
 
 TODO
 ****
-
-Put on github
 
 Debugging of Go runtime issues, queryperf loses too many packets
 
