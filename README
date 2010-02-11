@@ -1,0 +1,130 @@
+GRONG (Gross and ROugh Nameserver written in Go) is a DNS (Domain Name
+System) authoritative name server. It is intended as a research
+project and is *not* suitable for use on the wild Internet (for
+instance, it has little protection against rogue packets). 
+
+DO NOT USE ON A PRODUCTION SITE
+YOU HAVE BEEN WARNED!!!
+
+Disclaimer: I've never been to this city
+<http://en.wikipedia.org/wiki/Grong>
+
+GRONG can only be used as an authoritative name server (like, for
+instance, nsd), not as a recursive one.
+
+GRONG provides a general DNS engine, the front-end, which receives
+packets, parses them and sends a proper response, and several possible
+back-ends (named "responders") which generates a response, given the
+query. Some are provided with GRONG and you are welcome to write
+others.
+
+Usage
+*****
+
+./dnsserver [-address="[ADDRESS]:PORT"] [-debug=N]
+
+Run with -h to see the defaults.
+
+The -address option takes either a port (in the syntax ":NNN"), in
+that case GRONG listens on all IP addresses, or one address (in the
+syntax "x.y.z.T:NNN" for IPv4 and "[xxxx:yyyy::zzzz]:NNN" for
+IPv6). There is currently no way to listen on some (but not all) of the IP
+addresses.
+
+The back-end is choosen at compile-time only (I have no idea about the
+support for dynamic linking in Go)
+
+Among the provided responders:
+* rude-responder: responds REFUSED to every query
+* reflector-responder: for TXT requests, responds with the IP address of the client
+* as112: an AS 112 name server (see http://www.as112.net/)
+
+For the person who compiles
+**************************
+
+You need a working Go <http://golang.org> environment. Today, only the
+gc compiler is supported.
+
+To choose a responder (here, foobar-responder):
+
+make clean
+ln -sf foobar-responder.go responder.go
+make
+mv ./server /where/you/want/grong-foobar
+
+
+For the person who writes a responder
+************************************
+
+The interface of the responder is:
+
+It must be in package "responder" and imports package "types". Read
+"types.go" first, it contains useful constants (named from the RFC
+1035).
+
+The front-end checks that the request is a query and, if so, calls the
+responder. The prototype is:
+
+func Respond(query types.DNSquery) types.DNSresponse 
+
+In the DNSresponse, RRs (Resource Records) have to be in the wire
+format (the front-end does not know the format of the RR, to keep it
+generic). For instance, data in TXT RR has to be {length,
+value}. There are some utilities functions in types to help you to do
+so.
+
+Implementation notes
+********************
+
+One goroutine is run for every DNS request. Makes the code much
+simpler and easier to read but may explain the fact that performance
+are behind BIND.
+
+TODO
+****
+
+Put on github
+
+Debugging of Go runtime issues, queryperf loses too many packets
+
+Requests A and AAAA for the reflecting responder
+
+EDNS, specially for NSID (RFC 5001)
+
+Give the responder some global info such as the debug level and some
+per-query info such as the buffer size (512 by default)
+
+Pass unknown command-line options to the responder
+
+Hardening against rogue packets
+
+Use the log package
+
+Better handling of errors, an invalid packet should not stop the name
+server. Test with typing junk in telnet. Or learn Scapy, which seems
+more interesting. See for instance the example in
+<http://www.secdev.org/projects/scapy/demo.html>
+
+Finish the AS112 responder
+
+The abiity to listen to more than one address (but not all). Can I
+give several -address option to the flag module? If so, it probably
+just means firing several udpListeners and several tcpListeners
+
+Test with gccgo
+
+DNSSEC (no, I'm joking)
+
+
+Author
+******
+
+Stéphane Bortzmeyer <stephane+grong@bortzmeyer.org>
+
+
+License
+*******
+
+This is free software. Free as in free speech, not as in free beer.
+
+See the actual license in LICENSE
