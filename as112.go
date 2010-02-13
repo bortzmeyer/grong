@@ -9,27 +9,49 @@ package responder
 import (
 	"regexp"
 	"strings"
-	"os"
-	"fmt"
 	"./types"
-)
-
-var (
-	as112Domain, as112SubDomain *regexp.Regexp
 )
 
 const as112Regexp = "(168\\.192\\.in-addr\\.arpa|154\\.169\\.in-addr\\.arpa|16\\.172\\.in-addr\\.arpa|17\\.172\\.in-addr\\.arpa|18\\.172\\.in-addr\\.arpa|19\\.172\\.in-addr\\.arpa|20\\.172\\.in-addr\\.arpa|21\\.172\\.in-addr\\.arpa|22\\.172\\.in-addr\\.arpa|23\\.172\\.in-addr\\.arpa|24\\.172\\.in-addr\\.arpa|25\\.172\\.in-addr\\.arpa|26\\.172\\.in-addr\\.arpa|27\\.172\\.in-addr\\.arpa|28\\.172\\.in-addr\\.arpa|29\\.172\\.in-addr\\.arpa|30\\.172\\.in-addr\\.arpa|31\\.172\\.in-addr\\.arpa|10\\.in-addr\\.arpa)$"
 
 const defaultTtl = 3600
 
-// Answers to "TXT hostname.as112.net"
-var hostnameAnswers []string // Should be "const" but Go does not have const arrays :-(
-// So, see the body of init() for the values
+var (
+	as112Domain    = regexp.MustCompile("^" + as112Regexp)
+	as112SubDomain = regexp.MustCompile(as112Regexp)
+	// Answers to "TXT hostname.as112.net"
+	hostnameAnswers = [...]string{
+		"Unknown location on Earth.",
+		"GRONG, name server written in Go.",
+		"See http://as112.net/ for more information.",
+	}
 
-// Name servers of AS112, currently two (see init())
-var as112nameServers [2]string
+	// Name servers of AS112, currently two
+	as112nameServers = [...]string{
+		"blackhole-1.iana.org",
+		"blackhole-2.iana.org",
+	}
 
-var hostnamesoa, as112soa types.SOArecord // See init() for the value
+	hostnamesoa = types.SOArecord{
+		Mname: "NOT-CONFIGURED.as112.example.net", // Put the real host name
+		Rname: "UNKNOWN.as112.example.net", // Put your email address (with @ replaced by .)
+		Serial: 2003030100,
+		Refresh: 3600,
+		Retry: 600,
+		Expire: 2592000,
+		Minimum: 15,
+	}
+
+	as112soa = types.SOArecord{
+		Mname: "prisoner.iana.org",
+		Rname: "hostmaster.root-servers.org",
+		Serial: 2002040800,
+		Refresh: 1800,
+		Retry: 900,
+		Expire: 604800,
+		Minimum: 604800,
+	}
+)
 
 func nsRecords(domain string) (result []types.RR) {
 	result = make([]types.RR, len(as112nameServers))
@@ -99,42 +121,4 @@ func Respond(query types.DNSquery) (result types.DNSresponse) {
 		result.Responsecode = types.SERVFAIL
 	}
 	return result
-}
-
-func init() {
-	var (
-		error os.Error
-	)
-	// Do not forget to change the size in the call to make() if you add a
-	// string (yes, Go is painful in that respect)
-	hostnameAnswers = make([]string, 3)
-	hostnameAnswers[0] = "Unknown location on Earth."
-	hostnameAnswers[1] = "GRONG, name server written in Go."
-	hostnameAnswers[2] = "See http://as112.net/ for more information."
-	as112nameServers[0] = "blackhole-1.iana.org"
-	as112nameServers[1] = "blackhole-2.iana.org"
-	as112SubDomain, error = regexp.Compile(as112Regexp)
-	hostnamesoa.Mname = "NOT-CONFIGURED.as112.example.net" // Put the real host name
-	hostnamesoa.Rname = "UNKNOWN.as112.example.net"        // Put your email address (with @ replaced by .)
-	hostnamesoa.Serial = 2003030100
-	hostnamesoa.Refresh = 3600
-	hostnamesoa.Retry = 600
-	hostnamesoa.Expire = 2592000
-	hostnamesoa.Minimum = 15
-	as112soa.Mname = "prisoner.iana.org"
-	as112soa.Rname = "hostmaster.root-servers.org"
-	as112soa.Serial = 2002040800
-	as112soa.Refresh = 1800
-	as112soa.Retry = 900
-	as112soa.Expire = 604800
-	as112soa.Minimum = 604800
-	if error != nil {
-		fmt.Printf("Internal error: wrong regular expression: %s", error)
-		os.Exit(1)
-	}
-	as112Domain, error = regexp.Compile("^" + as112Regexp)
-	if error != nil {
-		fmt.Printf("Internal error: wrong regular expression: %s\n", error)
-		os.Exit(1)
-	}
 }
