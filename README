@@ -39,7 +39,7 @@ support for dynamic linking in Go)
 Among the provided responders:
 * rude-responder: responds REFUSED to every query
 * reflector-responder: for TXT requests, responds with the IP address of the client
-* as112: an AS 112 name server (see http://www.as112.net/)
+* as112: an AS 112 name server (see <http://www.as112.net/>)
 
 For the person who compiles
 **************************
