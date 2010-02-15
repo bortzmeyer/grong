@@ -286,8 +286,9 @@ func udpListener(address *net.UDPAddr, comm chan bool) {
 		fmt.Printf("Cannot listen: %s\n", error)
 		os.Exit(1)
 	}
+	// TODO: should probably be moved INSIDE the loop. NewBuffer does not copy! (kmk)
 	message := make([]byte, 1024) // TODO: loop for reading, we may have more bytes...
-	for {                         // ever...
+	for {                         // ever... ??? (not convincing: kmk)
 		n, remaddr, error := listener.ReadFrom(message)
 		if error != nil {
 			fmt.Printf("Cannot read UDP from %s: %s\n", remaddr.String(), error)
