@@ -13,13 +13,15 @@ responder.$O: types.$O
 
 %.$O: %.go 
 	${GC} $<
-	gopack grc types.a types.8 # Workaround a bug in the linker
 
 server: server.$O
 	${LD} -o $@ server.$O
 
-dist: clean
+dist: distclean
 	(cd ..; tar czvf ${TARBALL} grong/*)
 
 clean:
 	rm -f server *.$O
+
+distclean: clean
+	rm -f *~ responder.go

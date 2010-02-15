@@ -85,7 +85,8 @@ are behind BIND.
 TODO
 ****
 
-Debugging of Go runtime issues, queryperf loses too many packets
+Debugging of Go runtime performance issues, hit it harder with
+queryperf!
 
 Requests A and AAAA for the reflecting responder
 
