@@ -85,32 +85,29 @@ are behind BIND.
 TODO
 ****
 
-Debugging of Go runtime performance issues, hit it harder with
-queryperf!
-
-Requests A and AAAA for the reflecting responder
-
 EDNS, specially for NSID (RFC 5001)
 
 Give the responder some global info such as the debug level and some
 per-query info such as the buffer size (512 by default)
 
-Pass unknown command-line options to the responder
-
-Hardening against rogue packets
+Pass unknown command-line options to the responder. Options Qname for
+the reflector and various TXT for as112
 
 Use the log package
 
-Better handling of errors, an invalid packet should not stop the name
-server. Test with typing junk in telnet. Or learn Scapy, which seems
-more interesting. See for instance the example in
-<http://www.secdev.org/projects/scapy/demo.html>
+Hardening against rogue packets. Better handling of errors, an invalid
+packet should not stop the name server. Test with typing junk in
+telnet. Or learn Scapy, which seems more interesting. See for instance
+the example in <http://www.secdev.org/projects/scapy/demo.html>
 
 Finish the AS112 responder
 
 The abiity to listen to more than one address (but not all). Can I
 give several -address option to the flag module? If so, it probably
 just means firing several udpListeners and several tcpListeners
+
+Debugging of Go runtime performance issues, hit it harder with
+queryperf!
 
 Test with gccgo
 
