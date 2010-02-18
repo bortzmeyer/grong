@@ -5,35 +5,22 @@
 package main
 
 import (
-	"net"
-	"os"
-	"fmt"
 	"bytes"
-	"strings"
 	"encoding/binary"
 	"flag"
+	"fmt"
+	"net"
+	"os"
 	"./responder"
+	"runtime"
+	"strings"
 	"./types"
 )
 
-var (
-	debug int
-)
-
-func htons(data uint16) []byte {
-	var (
-		result []byte
-	)
-	result = make([]byte, 2)
-	binary.BigEndian.PutUint16(result, data)
-	return result
-}
+var debug int
 
 func serialize(packet types.DNSpacket) []byte {
-	var (
-		result []byte
-	)
-	result = make([]byte, 512)
+	result := make([]byte, 512)
 	// ID
 	binary.BigEndian.PutUint16(result[0:2], packet.Id)
 	// Misc flags...
@@ -84,10 +71,7 @@ func serialize(packet types.DNSpacket) []byte {
 }
 
 func readShortInteger(buf *bytes.Buffer) uint16 {
-	var (
-		slice []byte
-	)
-	slice = make([]byte, 2)
+	slice := make([]byte, 2)
 	n, error := buf.Read(slice[0:2])
 	if error != nil || n != 2 {
 		fmt.Printf("Error in Read of an int16: %s (%d bytes read)\n", error, n)
@@ -97,9 +81,7 @@ func readShortInteger(buf *bytes.Buffer) uint16 {
 }
 
 func parse(buf *bytes.Buffer) types.DNSpacket {
-	var (
-		packet types.DNSpacket
-	)
+	var packet types.DNSpacket
 	packet.Valid = false
 	packet.Id = readShortInteger(buf)
 	dnsmisc := readShortInteger(buf)
@@ -161,9 +143,7 @@ func parse(buf *bytes.Buffer) types.DNSpacket {
 }
 
 func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacket, noresponse bool) {
-	var (
-		query types.DNSquery
-	)
+	var query types.DNSquery
 	noresponse = true
 	packet := parse(buf)
 	if !packet.Valid { // Invalid packet or client too impatient
@@ -205,9 +185,7 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 }
 
 func udphandle(conn *net.UDPConn, remaddr net.Addr, buf *bytes.Buffer) {
-	var (
-		response types.DNSpacket
-	)
+	var response types.DNSpacket
 	if debug > 1 {
 		fmt.Printf("%d bytes packet from %s\n", buf.Len(), remaddr)
 	}
@@ -262,7 +240,7 @@ func tcphandle(connection net.Conn) {
 	connection.Close() // In theory, we may have other requests. We clearly violate the RFC by not waiting for them. TODO
 }
 
-func tcpListener(address *net.TCPAddr, comm chan bool) {
+func tcpListener(address *net.TCPAddr) {
 	listener, error := net.ListenTCP("udp", address)
 	if error != nil {
 		fmt.Printf("Cannot listen: %s\n", error)
@@ -277,10 +255,9 @@ func tcpListener(address *net.TCPAddr, comm chan bool) {
 		go tcphandle(connection)
 	}
 	listener.Close()
-	comm <- true
 }
 
-func udpListener(address *net.UDPAddr, comm chan bool) {
+func udpListener(address *net.UDPAddr) {
 	listener, error := net.ListenUDP("udp", address)
 	if error != nil {
 		fmt.Printf("Cannot listen: %s\n", error)
@@ -298,7 +275,6 @@ func udpListener(address *net.UDPAddr, comm chan bool) {
 		go udphandle(listener, remaddr, buf)
 	}
 	listener.Close()
-	comm <- true
 }
 
 func main() {
@@ -316,10 +292,10 @@ func main() {
 		fmt.Printf("Cannot parse \"%s\": %s\n", *listen, error)
 		os.Exit(1)
 	}
-	udpchan := make(chan bool)
-	go udpListener(udpaddr, udpchan)
-	tcpchan := make(chan bool)
-	go tcpListener(tcpaddr, tcpchan)
-	// TODO: quit properly if Control-C or SIGINT or SIGTERM
-	<-udpchan // Just to wait the listener, otherwise, the Go runtime ends even if there are live goroutines
+	go udpListener(udpaddr)
+	go tcpListener(tcpaddr)
+
+	//sleep forever
+	var sema uint32 = 0
+	runtime.Semacquire(&sema)
 }
