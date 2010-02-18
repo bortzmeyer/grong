@@ -18,7 +18,7 @@ const defaultTtl = 3600
 
 var (
 	as112Domain    = regexp.MustCompile("^" + as112Regexp)
-	as112SubDomain = regexp.MustCompile(as112Regexp)
+	as112SubDomain = regexp.MustCompile("\\." + as112Regexp)
 	// Answers to "TXT hostname.as112.net"
 	hostnameAnswers = [...]string{
 		"Unknown location on Earth.",
