@@ -83,10 +83,10 @@ func Respond(query types.DNSquery) (result types.DNSresponse) {
 			result.Responsecode = types.NOERROR
 			switch {
 			case query.Qtype == types.NS:
-				result.Asection = nsRecords(qname)
+				result.Asection = nsRecords(query.Qname)
 			case query.Qtype == types.SOA:
 				result.Asection = make([]types.RR, 1)
-				result.Asection[0] = soaRecord(qname, as112soa)
+				result.Asection[0] = soaRecord(query.Qname, as112soa)
 			case true:
 				// Do nothing
 			}
@@ -100,17 +100,18 @@ func Respond(query types.DNSquery) (result types.DNSresponse) {
 			case query.Qtype == types.TXT:
 				result.Asection = make([]types.RR, len(hostnameAnswers))
 				for i, text := range hostnameAnswers {
-					result.Asection[i].Name = "hostname.as112.net"
-					result.Asection[i].Ttl = defaultTtl
-					result.Asection[i].Tipe = types.TXT
-					result.Asection[i].Class = types.IN
-					result.Asection[i].Data = types.ToTXT(text)
+					result.Asection[i] = types.RR{
+						Name: query.Qname,
+						Ttl: defaultTtl,
+						Tipe: types.TXT,
+						Class: types.IN,
+						Data: types.ToTXT(text),
+					}
 				}
 			case query.Qtype == types.NS:
-				result.Asection = nsRecords("hostname.as112.net")
+				result.Asection = nsRecords(query.Qname)
 			case query.Qtype == types.SOA:
-				result.Asection = make([]types.RR, 1)
-				result.Asection[0] = soaRecord("hostname.as112.net", hostnamesoa)
+				result.Asection = []types.RR{ soaRecord(query.Qname, hostnamesoa) }
 			case true:
 				// Do nothing
 			}
