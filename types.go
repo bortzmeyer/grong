@@ -46,9 +46,11 @@ type DNSpacket struct {
 	Opcode                             uint
 	Rcode                              uint
 	Query, Recursion, Authoritative    bool
-	Qdcount, Ancount, Arcount, Nscount uint16
+	Qdcount, Ancount, Arcount, Nscount uint16 // May be use the implicit length 
+	// of the following arrays, instead?
 	Qsection                           []Qentry
 	Asection                           []RR
+	// TODO: other sections
 }
 
 // Entries in the Question section. RFC 1035, section 4.1.2
@@ -60,8 +62,8 @@ type Qentry struct {
 // Entries in Answer, Authority and NS sections. RFC 1035, section 4.1.3
 type RR struct {
 	Name        string
-	Tipe, Class uint16
-	Ttl         uint32
+	Type, Class uint16
+	TTL         uint32
 	// Length is implicit
 	Data []byte
 }
@@ -112,13 +114,14 @@ const (
 func ToTXT(s string) []byte {
 	result := make([]byte, 1+len(s))
 	result[0] = uint8(len(s))
-	for i, c := range strings.Bytes(s) {
-		result[i+1] = c
+	for i := 0; i < len(s); i++ {
+		result[i+1] = s[i]
 	}
 	return result
 }
 
 // Encodes a FQDN in wire-format (for each label, length+data)
+// TODO: see packDomainName in net/dnsmsg.go.
 func Encode(name string) []byte {
 	var (
 		totalresult []byte
@@ -129,8 +132,8 @@ func Encode(name string) []byte {
 	for _, label := range labels {
 		result := make([]byte, 1+len(label))
 		result[0] = uint8(len(label))
-		for i, c := range strings.Bytes(label) {
-			result[i+1] = c
+		for i := 0; i < len(label); i++ {
+			result[i+1] = label[i]
 		}
 		for i := 0; i < 1+len(label); i++ {
 			totalresult[totallength+i] = result[i]
@@ -152,6 +155,8 @@ func EncodeSOA(soa SOArecord) []byte {
 	rname := Encode(soa.Rname)
 	length = length + len(rname)
 	length = length + (5 * 4) // Five 32-bits counter at the end
+	/* "It's probably cleaner to write to a bytes.Buffer than to
+	repeatedly call bytes.Add." Russ Cox, go-nuts ML */
 	result = bytes.Add(result, mname)
 	result = bytes.Add(result, rname)
 	temp32 = make([]byte, 4)
