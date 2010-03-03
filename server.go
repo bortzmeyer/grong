@@ -12,7 +12,6 @@ import (
 	"net"
 	"os"
 	"./responder"
-	"runtime"
 	"strings"
 	"./types"
 )
@@ -45,8 +44,8 @@ func serialize(packet types.DNSpacket) []byte {
 		result[12+i] = c
 		last = i
 	}
-	binary.BigEndian.PutUint16(result[12+last+1:12+last+3], packet.Qsection[0].Qtype)
-	binary.BigEndian.PutUint16(result[12+last+3:12+last+5], packet.Qsection[0].Qclass)
+	binary.BigEndian.PutUint16(result[12+last+1:], packet.Qsection[0].Qtype)
+	binary.BigEndian.PutUint16(result[12+last+3:], packet.Qsection[0].Qclass)
 	last = 12 + last + 5
 	for rrnum, rr := range packet.Asection {
 		encoded_qname := types.Encode(packet.Asection[rrnum].Name)
@@ -55,9 +54,9 @@ func serialize(packet types.DNSpacket) []byte {
 			result[last+i] = c
 			n++
 		}
-		binary.BigEndian.PutUint16(result[last+n:last+n+2], rr.Tipe)
+		binary.BigEndian.PutUint16(result[last+n:last+n+2], rr.Type)
 		binary.BigEndian.PutUint16(result[last+n+2:last+n+4], rr.Class)
-		binary.BigEndian.PutUint32(result[last+n+4:last+n+8], rr.Ttl)
+		binary.BigEndian.PutUint32(result[last+n+4:last+n+8], rr.TTL)
 		binary.BigEndian.PutUint16(result[last+n+8:last+n+10], uint16(len(rr.Data)))
 		last = last + n + 10
 		n = 0
@@ -240,7 +239,7 @@ func tcphandle(connection net.Conn) {
 	connection.Close() // In theory, we may have other requests. We clearly violate the RFC by not waiting for them. TODO
 }
 
-func tcpListener(address *net.TCPAddr) {
+func tcpListener(address *net.TCPAddr, comm chan bool) {
 	listener, error := net.ListenTCP("udp", address)
 	if error != nil {
 		fmt.Printf("Cannot listen: %s\n", error)
@@ -255,9 +254,10 @@ func tcpListener(address *net.TCPAddr) {
 		go tcphandle(connection)
 	}
 	listener.Close()
+	comm <- true
 }
 
-func udpListener(address *net.UDPAddr) {
+func udpListener(address *net.UDPAddr, comm chan bool) {
 	listener, error := net.ListenUDP("udp", address)
 	if error != nil {
 		fmt.Printf("Cannot listen: %s\n", error)
@@ -275,6 +275,7 @@ func udpListener(address *net.UDPAddr) {
 		go udphandle(listener, remaddr, buf)
 	}
 	listener.Close()
+	comm <- true
 }
 
 func main() {
@@ -292,10 +293,11 @@ func main() {
 		fmt.Printf("Cannot parse \"%s\": %s\n", *listen, error)
 		os.Exit(1)
 	}
-	go udpListener(udpaddr)
-	go tcpListener(tcpaddr)
+	udpchan := make(chan bool)
+	go udpListener(udpaddr, udpchan)
+	tcpchan := make(chan bool)
+	go tcpListener(tcpaddr, tcpchan)
 
-	//sleep forever
-	var sema uint32 = 0
-	runtime.Semacquire(&sema)
+	<-udpchan // Just to wait the listener, otherwise, the Go runtime ends even if there are live goroutines
+	<-tcpchan
 }

@@ -21,7 +21,7 @@ dist: distclean
 	(cd ..; tar czvf ${TARBALL} grong/*)
 
 clean:
-	rm -f server *.$O
+	rm -f server *.$O *.a
 
 distclean: clean
 	rm -f *~ responder.go

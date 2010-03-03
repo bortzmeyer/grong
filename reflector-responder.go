@@ -34,27 +34,27 @@ func txtRecord(client net.Addr) []byte {
 
 func txtSection(qname string, client net.Addr) (result types.RR) {
 	result.Name = qname
-	result.Tipe = types.TXT
+	result.Type = types.TXT
 	result.Class = types.IN
-	result.Ttl = 0
+	result.TTL = 0
 	result.Data = txtRecord(client)
 	return
 }
 
 func addressSection(qname string, client net.IP) (result types.RR) {
 	result.Name = qname
-	result.Tipe = types.A
+	result.Type = types.A
 	result.Class = types.IN
-	result.Ttl = 0
+	result.TTL = 0
 	result.Data = client
 	return
 }
 
 func aaaaSection(qname string, client net.IP) (result types.RR) {
 	result.Name = qname
-	result.Tipe = types.AAAA
+	result.Type = types.AAAA
 	result.Class = types.IN
-	result.Ttl = 0
+	result.TTL = 0
 	result.Data = client
 	return
 }
@@ -102,7 +102,7 @@ func Respond(query types.DNSquery) types.DNSresponse {
 		} else {
 			result.Asection[1] = addressSection(query.Qname, ipaddressV4)
 		}
-	case true:
+	default:
 		result.Responsecode = types.NOERROR
 	}
 	return result
