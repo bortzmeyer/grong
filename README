@@ -1,10 +1,8 @@
 GRONG (Gross and ROugh Nameserver written in Go) is a DNS (Domain Name
 System) authoritative name server. It is intended as a research
-project and is *not* suitable for use on the wild Internet (for
-instance, it has little protection against rogue packets). 
+project and is not probably suitable for use on the wild Internet.
 
-DO NOT USE ON A PRODUCTION SITE
-YOU HAVE BEEN WARNED!!!
+MAY NOT BE SUITABLE ON A PRODUCTION SITE. YOU HAVE BEEN WARNED!!!
 
 Disclaimer: I've never been to this city
 <http://en.wikipedia.org/wiki/Grong>
@@ -95,13 +93,7 @@ the reflector and various TXT for as112
 
 Use the log package
 
-Hardening against rogue packets. Better handling of errors, an invalid
-packet should not stop the name server. Test with typing junk in
-telnet. Or learn Scapy, which seems more interesting. See for instance
-the example in <http://www.secdev.org/projects/scapy/demo.html> and
-the example test-scapy.py in the distribution.
-
-Finish the AS112 responder
+Finish the AS112 responder (SOA and NS records)
 
 The ability to listen to more than one address (but not all). Can I
 give several -address option to the flag module? If so, it probably
@@ -125,6 +117,9 @@ list of zones (all with identical data) and the IP address of the Web
 server being taken from a file or on the command-line.
 
 Configuration file. What is idiomatic in Go? .INI ?
+
+Continue hardening against rogue packets. See the example
+test-scapy.py in the distribution.
 
 DNSSEC (no, I'm joking)
 

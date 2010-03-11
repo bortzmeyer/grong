@@ -28,7 +28,7 @@ func serialize(packet types.DNSpacket) []byte {
 	// ID
 	binary.BigEndian.PutUint16(result[0:2], packet.Id)
 	// Misc flags...
-	result[2] = 0x80 // TODO: why this value?
+	result[2] = 0x80 // QR 1 (response), everything else 0
 	result[3] = byte(packet.Rcode)
 	binary.BigEndian.PutUint16(result[4:6], packet.Qdcount)
 	// Ancount
@@ -98,36 +98,48 @@ func serialize(packet types.DNSpacket) []byte {
 	return result[0:last]
 }
 
-func readShortInteger(buf *bytes.Buffer) uint16 {
+func readShortInteger(buf *bytes.Buffer) (uint16, bool) {
 	slice := make([]byte, 2)
 	n, error := buf.Read(slice[0:2])
 	if error != nil || n != 2 {
-		fmt.Printf("Error in Read of an int16: %s (%d bytes read)\n", error, n)
-		os.Exit(1) // TODO: should handle it better?
+		if debug > 2 {
+			fmt.Printf("Error in Read of an int16: %s (%d bytes read)\n", error, n)
+			return 0, false
+		}
 	}
-	return binary.BigEndian.Uint16(slice[0:2])
+	return binary.BigEndian.Uint16(slice[0:2]), true
 }
 
-func readInteger(buf *bytes.Buffer) uint32 {
+func readInteger(buf *bytes.Buffer) (uint32, bool) {
 	slice := make([]byte, 4)
 	n, error := buf.Read(slice[0:4])
 	if error != nil || n != 4 {
-		fmt.Printf("Error in Read of an int32: %s (%d bytes read)\n", error, n)
-		os.Exit(1) // TODO: should handle it better?
+		if debug > 2 {
+			fmt.Printf("Error in Read of an int32: %s (%d bytes read)\n", error, n)
+			return 0, false
+		}
 	}
-	return binary.BigEndian.Uint32(slice[0:4])
+	return binary.BigEndian.Uint32(slice[0:4]), true
 }
 
-func parse(buf *bytes.Buffer) types.DNSpacket {
-	var packet types.DNSpacket
+func parse(buf *bytes.Buffer) (types.DNSpacket, bool) {
+	var (
+		packet types.DNSpacket
+		ok     bool
+	)
 	// Initialize with sensible values
-	packet.Valid = false
 	packet.Edns = false
 	packet.EdnsBufferSize = 512
 	packet.Nsid = false
 
-	packet.Id = readShortInteger(buf)
-	dnsmisc := readShortInteger(buf)
+	packet.Id, ok = readShortInteger(buf)
+	if !ok {
+		return packet, false
+	}
+	dnsmisc, ok := readShortInteger(buf)
+	if !ok {
+		return packet, false
+	}
 	qr := (dnsmisc & 0x8000) >> 15
 	packet.Query = false
 	if qr == 0 {
@@ -140,12 +152,27 @@ func parse(buf *bytes.Buffer) types.DNSpacket {
 		packet.Recursion = true
 	}
 	packet.Rcode = uint(dnsmisc & 0x000F)
-	packet.Qdcount = readShortInteger(buf)
-	// TODO: reject packets with more than one Q section
-	packet.Ancount = readShortInteger(buf)
+	packet.Qdcount, ok = readShortInteger(buf)
+	if !ok {
+		return packet, false
+	}
+	if packet.Qdcount != 1 {
+		// This may be legal but we would not know what to do with it
+		return packet, false
+	}
+	packet.Ancount, ok = readShortInteger(buf)
+	if !ok {
+		return packet, false
+	}
 	// TODO: reject packets with non-empty answer or authority sections
-	packet.Nscount = readShortInteger(buf)
-	packet.Arcount = readShortInteger(buf)
+	packet.Nscount, ok = readShortInteger(buf)
+	if !ok {
+		return packet, false
+	}
+	packet.Arcount, ok = readShortInteger(buf)
+	if !ok {
+		return packet, false
+	}
 	over := false
 	labels_max := make([]string, 63)
 	labels := labels_max[0:0]
@@ -155,10 +182,12 @@ func parse(buf *bytes.Buffer) types.DNSpacket {
 		labelsize, error := buf.ReadByte()
 		if error != nil {
 			if error == os.EOF {
-				return packet
+				return packet, false
 			} else {
-				fmt.Printf("Error in ReadByte: %s\n", error)
-				os.Exit(1) // TODO: should handle it better
+				if debug > 2 {
+					fmt.Printf("Error in ReadByte: %s\n", error)
+				}
+				return packet, false
 			}
 		}
 		if labelsize == 0 {
@@ -170,10 +199,12 @@ func parse(buf *bytes.Buffer) types.DNSpacket {
 		if error != nil || n != int(labelsize) {
 			if error == nil {
 				// Client left after leaving only a few bytes
-				return packet
+				return packet, false
 			} else {
-				fmt.Printf("Error in Read %d bytes: %s\n", n, error)
-				os.Exit(1) // TODO: should handle it better
+				if debug > 2 {
+					fmt.Printf("Error in Read %d bytes: %s\n", n, error)
+				}
+				return packet, false
 			}
 		}
 		nlabels += 1
@@ -182,38 +213,62 @@ func parse(buf *bytes.Buffer) types.DNSpacket {
 	}
 	packet.Qsection = make([]types.Qentry, packet.Qdcount)
 	packet.Qsection[0].Qname = strings.Join(labels, ".")
-	packet.Qsection[0].Qtype = readShortInteger(buf)
-	packet.Qsection[0].Qclass = readShortInteger(buf)
+	packet.Qsection[0].Qtype, ok = readShortInteger(buf)
+	if !ok {
+		return packet, false
+	}
+	packet.Qsection[0].Qclass, ok = readShortInteger(buf)
+	if !ok {
+		return packet, false
+	}
 	if packet.Arcount > 0 {
 		labelsize, error := buf.ReadByte()
 		if error != nil {
 			if error == os.EOF {
-				return packet
+				return packet, false
 			} else {
-				fmt.Printf("Error in ReadByte: %s\n", error)
-				os.Exit(1) // TODO: should handle it better
+				if debug > 2 {
+					fmt.Printf("Error in ReadByte: %s\n", error)
+				}
+				return packet, false
 			}
 		}
 		if labelsize != 0 {
-			fmt.Printf("Additional section with non-empty name\n")
-			os.Exit(1) // TODO: should handle it better
+			if debug > 2 {
+				fmt.Printf("Additional section with non-empty name\n")
+			}
+			return packet, false
 		}
-		artype := readShortInteger(buf)
+		artype, ok := readShortInteger(buf)
+		if !ok {
+			return packet, false
+		}
 		if artype == types.OPT {
 			packet.Edns = true
-			packet.EdnsBufferSize = readShortInteger(buf)
-			extrcode := readInteger(buf)
-			ednslength := readShortInteger(buf)
+			packet.EdnsBufferSize, ok = readShortInteger(buf)
+			if !ok {
+				return packet, false
+			}
+			extrcode, ok := readInteger(buf)
+			if !ok {
+				return packet, false
+			}
+			ednslength, ok := readShortInteger(buf)
+			if !ok {
+				return packet, false
+			}
 			options := make([]byte, ednslength)
 			if ednslength > 0 {
 				n, error := buf.Read(options)
 				if error != nil || n != int(ednslength) {
 					if error == nil {
 						// Client left after leaving only a few bytes
-						return packet
+						return packet, false
 					} else {
-						fmt.Printf("Error in Read %d bytes: %s\n", n, error)
-						os.Exit(1) // TODO: should handle it better
+						if debug > 2 {
+							fmt.Printf("Error in Read %d bytes: %s\n", n, error)
+						}
+						return packet, false
 					}
 				}
 				over = false
@@ -225,7 +280,9 @@ func parse(buf *bytes.Buffer) types.DNSpacket {
 					}
 					optlen := int(binary.BigEndian.Uint16(options[counter+2 : counter+4]))
 					if optlen > 0 {
-						// TODO: this may run out of the array
+						if counter+4+optlen > len(options) {
+							return packet, false
+						}
 						_ = options[counter+4 : counter+4+optlen] // Yes, useless, I know
 					}
 					counter += (4 + optlen)
@@ -250,8 +307,7 @@ func parse(buf *bytes.Buffer) types.DNSpacket {
 			// Ignore additional section if not EDNS
 		}
 	}
-	packet.Valid = true
-	return packet
+	return packet, true
 }
 
 func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacket, noresponse bool) {
@@ -260,8 +316,8 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 		desiredresponse types.DNSresponse
 	)
 	noresponse = true
-	packet := parse(buf)
-	if !packet.Valid { // Invalid packet or client too impatient
+	packet, valid := parse(buf)
+	if !valid { // Invalid packet or client too impatient
 		return
 	}
 	if debug > 2 {
@@ -299,11 +355,11 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 			desiredresponse.Responsecode = types.NOERROR
 			desiredresponse.Ansection = make([]types.RR, 1)
 			desiredresponse.Ansection[0] = types.RR{
-				Name: query.Qname,
-				TTL: defaultTTL,
-				Type: types.TXT,
+				Name:  query.Qname,
+				TTL:   defaultTTL,
+				Type:  types.TXT,
 				Class: types.IN,
-				Data: types.ToTXT(servername)}
+				Data:  types.ToTXT(servername)}
 		} else {
 			desiredresponse = responder.Respond(query)
 		}
@@ -329,8 +385,10 @@ func udphandle(conn *net.UDPConn, remaddr net.Addr, buf *bytes.Buffer) {
 		binaryresponse := serialize(response)
 		_, error := conn.WriteTo(binaryresponse, remaddr)
 		if error != nil {
-			fmt.Printf("Error in Write: %s\n", error)
-			os.Exit(1) // TODO: should handle it better
+			if debug > 2 {
+				fmt.Printf("Error in Write: %s\n", error)
+				return
+			}
 		}
 	}
 	// Else, ignore the incoming packet. May be we should reply REFUSED instead?
@@ -343,15 +401,19 @@ func tcphandle(connection net.Conn) {
 	smallbuf := make([]byte, 2)
 	n, error := connection.Read(smallbuf)
 	if error != nil {
-		fmt.Printf("Cannot read message length from TCP connection: %s\n", error)
-		os.Exit(1) // TODO: should handle it better
+		if debug > 2 {
+			fmt.Printf("Cannot read message length from TCP connection: %s\n", error)
+			return
+		}
 	}
 	msglength := binary.BigEndian.Uint16(smallbuf) // RFC 1035, section 4.2.2 "TCP usage"
 	message := make([]byte, msglength)
 	n, error = connection.Read(message)
 	if error != nil {
-		fmt.Printf("Cannot read message from TCP connection with %s: %s\n", connection.RemoteAddr(), error)
-		os.Exit(1) // TODO: should handle it better
+		if debug > 2 {
+			fmt.Printf("Cannot read message from TCP connection with %s: %s\n", connection.RemoteAddr(), error)
+			return
+		}
 	}
 	if debug > 1 {
 		fmt.Printf("%d bytes read from %s\n", n, connection.RemoteAddr())
@@ -363,13 +425,17 @@ func tcphandle(connection net.Conn) {
 		binary.BigEndian.PutUint16(shortbuf, uint16(len(binaryresponse)))
 		n, error := connection.Write(shortbuf)
 		if n != 2 || error != nil {
-			fmt.Printf("Error in TCP message length Write: %s\n", error)
-			os.Exit(1) // TODO: should handle it better
+			if debug > 2 {
+				fmt.Printf("Error in TCP message length Write: %s\n", error)
+				return
+			}
 		}
 		n, error = connection.Write(binaryresponse)
 		if error != nil {
-			fmt.Printf("Error in TCP message Write: %s\n", error)
-			os.Exit(1) // TODO: should handle it better
+			if debug > 2 {
+				fmt.Printf("Error in TCP message Write: %s\n", error)
+				return
+			}
 		}
 	}
 	connection.Close() // In theory, we may have other requests. We clearly violate the RFC by not waiting for them. TODO
@@ -384,8 +450,10 @@ func tcpListener(address *net.TCPAddr, comm chan bool) {
 	for {
 		connection, error := listener.Accept()
 		if error != nil {
-			fmt.Printf("Cannot accept TCP connection: %s\n", error)
-			os.Exit(1) // TODO: should handle it better
+			if debug > 1 {
+				fmt.Printf("Cannot accept TCP connection: %s\n", error)
+				continue
+			}
 		}
 		go tcphandle(connection)
 	}
@@ -404,8 +472,10 @@ func udpListener(address *net.UDPAddr, comm chan bool) {
 		// for *incoming* queries
 		n, remaddr, error := listener.ReadFrom(message)
 		if error != nil {
-			fmt.Printf("Cannot read UDP from %s: %s\n", remaddr.String(), error)
-			os.Exit(1) // TODO: should handle it better
+			if debug > 1 {
+				fmt.Printf("Cannot read UDP from %s: %s\n", remaddr.String(), error)
+				continue
+			}
 		}
 		buf := bytes.NewBuffer(message[0:n])
 		go udphandle(listener, remaddr, buf)

@@ -43,7 +43,6 @@ type DNSheader struct {
 // This type represents the DNS packet, with all its fields, as
 // described in RFC 1035, section 4.1. So, it is a bit long
 type DNSpacket struct {
-	Valid                              bool
 	Id                                 uint16
 	Opcode                             uint
 	Rcode                              uint

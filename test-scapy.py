@@ -37,7 +37,10 @@ except getopt.error, reason:
 if len(args) != 0:
     usage()
     sys.exit(1)
-
+if dst is None:
+    usage()
+    sys.exit(1)
+    
 p = IP(dst=dst)/UDP(sport=RandShort(),dport=dport)/DNS(rd=1,qd=DNSQR(qname=qname))
 
 # Send a normal packet
@@ -56,7 +59,7 @@ s2 = s[:44] + '\x030' + s[45:]
 p2 = IP(s2)
 p2[UDP].sport=RandShort()
 del p2[UDP].chksum
-sr1(p2)
+sr1(p2, timeout=1.5, retry=-2)
 
 # Truncates the packet
 s2 = s[:-4]
@@ -66,4 +69,4 @@ del p2[IP].len
 del p2[IP].chksum
 del p2[UDP].len 
 del p2[UDP].chksum
-sr1(p2)
+sr1(p2, timeout=1.5, retry=-2)
