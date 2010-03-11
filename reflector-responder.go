@@ -63,7 +63,7 @@ func Respond(query types.DNSquery) types.DNSresponse {
 	var (
 		result types.DNSresponse
 	)
-	result.Asection = nil
+	result.Ansection = nil
 	tcpAddr, _ := net.ResolveTCPAddr(query.Client.String())
 	ipaddressV4 := tcpAddr.IP.To4()
 	switch {
@@ -73,8 +73,8 @@ func Respond(query types.DNSquery) types.DNSresponse {
 		result.Responsecode = types.NOERROR
 		if ipaddressV4 != nil {
 			ancount := 1
-			result.Asection = make([]types.RR, ancount)
-			result.Asection[0] = addressSection(query.Qname, ipaddressV4)
+			result.Ansection = make([]types.RR, ancount)
+			result.Ansection[0] = addressSection(query.Qname, ipaddressV4)
 		} else {
 			// ancount := 0
 		}
@@ -82,25 +82,25 @@ func Respond(query types.DNSquery) types.DNSresponse {
 		result.Responsecode = types.NOERROR
 		if ipaddressV4 == nil {
 			ancount := 1
-			result.Asection = make([]types.RR, ancount)
-			result.Asection[0] = aaaaSection(query.Qname, tcpAddr.IP)
+			result.Ansection = make([]types.RR, ancount)
+			result.Ansection[0] = aaaaSection(query.Qname, tcpAddr.IP)
 		} else {
 			// ancount := 0
 		}
 	case query.Qtype == types.TXT:
 		result.Responsecode = types.NOERROR
 		ancount := 1
-		result.Asection = make([]types.RR, ancount)
-		result.Asection[0] = txtSection(query.Qname, query.Client)
+		result.Ansection = make([]types.RR, ancount)
+		result.Ansection[0] = txtSection(query.Qname, query.Client)
 	case query.Qtype == types.ALL:
 		result.Responsecode = types.NOERROR
 		ancount := 2
-		result.Asection = make([]types.RR, ancount)
-		result.Asection[0] = txtSection(query.Qname, query.Client)
+		result.Ansection = make([]types.RR, ancount)
+		result.Ansection[0] = txtSection(query.Qname, query.Client)
 		if ipaddressV4 == nil {
-			result.Asection[1] = aaaaSection(query.Qname, tcpAddr.IP)
+			result.Ansection[1] = aaaaSection(query.Qname, tcpAddr.IP)
 		} else {
-			result.Asection[1] = addressSection(query.Qname, ipaddressV4)
+			result.Ansection[1] = addressSection(query.Qname, ipaddressV4)
 		}
 	default:
 		result.Responsecode = types.NOERROR

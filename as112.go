@@ -79,7 +79,7 @@ func soaRecord(domain string, soa types.SOArecord) (result types.RR) {
 }
 
 func Respond(query types.DNSquery) (result types.DNSresponse) {
-	result.Asection = nil
+	result.Ansection = nil
 	qname := strings.ToLower(query.Qname)
 	if query.Qclass == types.IN {
 		switch {
@@ -87,10 +87,10 @@ func Respond(query types.DNSquery) (result types.DNSresponse) {
 			result.Responsecode = types.NOERROR
 			switch {
 			case query.Qtype == types.NS:
-				result.Asection = nsRecords(query.Qname)
+				result.Ansection = nsRecords(query.Qname)
 			case query.Qtype == types.SOA:
-				result.Asection = make([]types.RR, 1)
-				result.Asection[0] = soaRecord(query.Qname, as112soa)
+				result.Ansection = make([]types.RR, 1)
+				result.Ansection[0] = soaRecord(query.Qname, as112soa)
 			default:
 				// Do nothing
 			}
@@ -102,9 +102,9 @@ func Respond(query types.DNSquery) (result types.DNSresponse) {
 			result.Responsecode = types.NOERROR
 			switch query.Qtype { // TODO: handle ANY qtypes
 			case types.TXT:
-				result.Asection = make([]types.RR, len(hostnameAnswers))
+				result.Ansection = make([]types.RR, len(hostnameAnswers))
 				for i, text := range hostnameAnswers {
-					result.Asection[i] = types.RR{
+					result.Ansection[i] = types.RR{
 						Name: query.Qname,
 						TTL: defaultTTL,
 						Type: types.TXT,
@@ -113,9 +113,9 @@ func Respond(query types.DNSquery) (result types.DNSresponse) {
 					}
 				}
 			case types.NS:
-				result.Asection = nsRecords(query.Qname)
+				result.Ansection = nsRecords(query.Qname)
 			case types.SOA:
-				result.Asection = []types.RR{soaRecord(query.Qname, hostnamesoa)}
+				result.Ansection = []types.RR{soaRecord(query.Qname, hostnamesoa)}
 			default:
 				// Do nothing
 			}

@@ -25,7 +25,7 @@ Usage
 
 ./dnsserver [-address="[ADDRESS]:PORT"] [-debug=N]
 
-Run with -h to see the defaults.
+Run with -h to see the defaults (and the other, less common, options)
 
 The -address option takes either a port (in the syntax ":NNN"), in
 that case GRONG listens on all IP addresses, or one address (in the
@@ -69,6 +69,9 @@ responder. The prototype is:
 
 func Respond(query types.DNSquery) types.DNSresponse 
 
+To see what is available for you in the query, see the descriptio of
+type DNSquery.
+
 In the DNSresponse, RRs (Resource Records) have to be in the wire
 format (the front-end does not know the format of the RR, to keep it
 generic). For instance, data in TXT RR has to be {length,
@@ -85,10 +88,7 @@ are behind BIND.
 TODO
 ****
 
-EDNS, specially for NSID (RFC 5001)
-
-Give the responder some global info such as the debug level and some
-per-query info such as the buffer size (512 by default)
+Give the responder some global info such as the debug level.
 
 Pass unknown command-line options to the responder. Options Qname for
 the reflector and various TXT for as112
@@ -98,11 +98,12 @@ Use the log package
 Hardening against rogue packets. Better handling of errors, an invalid
 packet should not stop the name server. Test with typing junk in
 telnet. Or learn Scapy, which seems more interesting. See for instance
-the example in <http://www.secdev.org/projects/scapy/demo.html>
+the example in <http://www.secdev.org/projects/scapy/demo.html> and
+the example test-scapy.py in the distribution.
 
 Finish the AS112 responder
 
-The abiity to listen to more than one address (but not all). Can I
+The ability to listen to more than one address (but not all). Can I
 give several -address option to the flag module? If so, it probably
 just means firing several udpListeners and several tcpListeners
 
@@ -111,10 +112,19 @@ queryperf!
 
 Test with gccgo
 
+Implements id.server and version.bind
+
 See if we can replace a good part of package "types" by standard
 package net/ <http://golang.org/src/pkg/net/dnsmsg.go>
 
 Daemonize <http://groups.google.com/group/golang-nuts/browse_thread/thread/2b29d93b90501a4b/95242bfb7ae0549e>
+
+A name server with data, for instance able to serve a zone with a
+simple setup, one SOA, a few NS, and one A record for www.$ORIGIN. The
+list of zones (all with identical data) and the IP address of the Web
+server being taken from a file or on the command-line.
+
+Configuration file. What is idiomatic in Go? .INI ?
 
 DNSSEC (no, I'm joking)
 

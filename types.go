@@ -18,7 +18,8 @@ import (
 // info can be represented.
 type DNSresponse struct {
 	Responsecode uint
-	Asection     []RR
+	Ansection    []RR
+	// TODO: allow to have other sections?
 }
 
 // This type is used for the communication between the server (the
@@ -29,6 +30,7 @@ type DNSquery struct {
 	Qname  string
 	Qclass uint16
 	Qtype  uint16
+	BufferSize uint16
 }
 
 // Probably obsolete, will be deleted
@@ -45,12 +47,16 @@ type DNSpacket struct {
 	Id                                 uint16
 	Opcode                             uint
 	Rcode                              uint
+	Edns                               bool
+        EdnsBufferSize                     uint16
 	Query, Recursion, Authoritative    bool
-	Qdcount, Ancount, Arcount, Nscount uint16 // May be use the implicit length 
+	Qdcount, Ancount, Arcount, Nscount uint16 // Question, Answer, Additional and Authority. May be use the implicit length
 	// of the following arrays, instead?
-	Qsection                           []Qentry
-	Asection                           []RR
+	Qsection  []Qentry
+	Ansection []RR // Answer section
+	Arsection []RR // Additional section
 	// TODO: other sections
+        Nsid                               bool // RFC 5001
 }
 
 // Entries in the Question section. RFC 1035, section 4.1.2
@@ -100,12 +106,16 @@ const (
 	MX    = 15
 	TXT   = 16
 	AAAA  = 28
+	OPT   = 41
 	ALL   = 255
 
 	// Opcodes
 	STDQUERY = 0
 	IQUERY   = 1
 	STATUS   = 2
+
+        // EDNS Option codes
+        NSID = 3
 )
 
 // Various utility functions

@@ -16,10 +16,15 @@ import (
 	"./types"
 )
 
-var debug int
+const defaultTTL = 3600
+
+var (
+	debug      int
+	servername string
+)
 
 func serialize(packet types.DNSpacket) []byte {
-	result := make([]byte, 512)
+	result := make([]byte, packet.EdnsBufferSize)
 	// ID
 	binary.BigEndian.PutUint16(result[0:2], packet.Id)
 	// Misc flags...
@@ -33,7 +38,11 @@ func serialize(packet types.DNSpacket) []byte {
 	result[9] = 0
 	// Arcount
 	result[10] = 0
-	result[11] = 0
+	if packet.Edns {
+		result[11] = 1
+	} else {
+		result[11] = 0
+	}
 	if len(packet.Qsection) != 1 {
 		fmt.Printf("Fatal: Qsection's length is not 1: %d\n", len(packet.Qsection))
 		os.Exit(1) // TODO: better handling
@@ -47,8 +56,8 @@ func serialize(packet types.DNSpacket) []byte {
 	binary.BigEndian.PutUint16(result[12+last+1:], packet.Qsection[0].Qtype)
 	binary.BigEndian.PutUint16(result[12+last+3:], packet.Qsection[0].Qclass)
 	last = 12 + last + 5
-	for rrnum, rr := range packet.Asection {
-		encoded_qname := types.Encode(packet.Asection[rrnum].Name)
+	for rrnum, rr := range packet.Ansection {
+		encoded_qname := types.Encode(packet.Ansection[rrnum].Name)
 		n := 0
 		for i, c := range encoded_qname {
 			result[last+i] = c
@@ -60,11 +69,31 @@ func serialize(packet types.DNSpacket) []byte {
 		binary.BigEndian.PutUint16(result[last+n+8:last+n+10], uint16(len(rr.Data)))
 		last = last + n + 10
 		n = 0
-		for i, c := range packet.Asection[rrnum].Data {
+		for i, c := range packet.Ansection[rrnum].Data {
 			result[last+i] = c
 			n++
 		}
 		last = last + n
+	}
+	if packet.Edns {
+		result[last] = 0 // EDNS0's Name
+		binary.BigEndian.PutUint16(result[last+1:last+3], types.OPT)
+		binary.BigEndian.PutUint16(result[last+3:last+5], packet.EdnsBufferSize)
+		binary.BigEndian.PutUint32(result[last+5:last+9], 0)
+		if packet.Nsid && servername != "" {
+			binary.BigEndian.PutUint16(result[last+9:last+11],
+				uint16(4+len(servername)))
+			binary.BigEndian.PutUint16(result[last+11:last+13], types.NSID)
+			binary.BigEndian.PutUint16(result[last+13:last+15], uint16(len(servername)))
+			for i, c := range servername {
+				result[last+15+i] = uint8(c)
+			}
+			last += 15 + int(len(servername))
+		} else {
+			// Zero EDNS options
+			binary.BigEndian.PutUint16(result[last+9:last+11], 0)
+			last += 11
+		}
 	}
 	return result[0:last]
 }
@@ -79,9 +108,24 @@ func readShortInteger(buf *bytes.Buffer) uint16 {
 	return binary.BigEndian.Uint16(slice[0:2])
 }
 
+func readInteger(buf *bytes.Buffer) uint32 {
+	slice := make([]byte, 4)
+	n, error := buf.Read(slice[0:4])
+	if error != nil || n != 4 {
+		fmt.Printf("Error in Read of an int32: %s (%d bytes read)\n", error, n)
+		os.Exit(1) // TODO: should handle it better?
+	}
+	return binary.BigEndian.Uint32(slice[0:4])
+}
+
 func parse(buf *bytes.Buffer) types.DNSpacket {
 	var packet types.DNSpacket
+	// Initialize with sensible values
 	packet.Valid = false
+	packet.Edns = false
+	packet.EdnsBufferSize = 512
+	packet.Nsid = false
+
 	packet.Id = readShortInteger(buf)
 	dnsmisc := readShortInteger(buf)
 	qr := (dnsmisc & 0x8000) >> 15
@@ -97,12 +141,15 @@ func parse(buf *bytes.Buffer) types.DNSpacket {
 	}
 	packet.Rcode = uint(dnsmisc & 0x000F)
 	packet.Qdcount = readShortInteger(buf)
+	// TODO: reject packets with more than one Q section
 	packet.Ancount = readShortInteger(buf)
+	// TODO: reject packets with non-empty answer or authority sections
 	packet.Nscount = readShortInteger(buf)
 	packet.Arcount = readShortInteger(buf)
 	over := false
 	labels_max := make([]string, 63)
 	labels := labels_max[0:0]
+	// Parse the Question section
 	nlabels := 0
 	for !over {
 		labelsize, error := buf.ReadByte()
@@ -137,12 +184,81 @@ func parse(buf *bytes.Buffer) types.DNSpacket {
 	packet.Qsection[0].Qname = strings.Join(labels, ".")
 	packet.Qsection[0].Qtype = readShortInteger(buf)
 	packet.Qsection[0].Qclass = readShortInteger(buf)
+	if packet.Arcount > 0 {
+		labelsize, error := buf.ReadByte()
+		if error != nil {
+			if error == os.EOF {
+				return packet
+			} else {
+				fmt.Printf("Error in ReadByte: %s\n", error)
+				os.Exit(1) // TODO: should handle it better
+			}
+		}
+		if labelsize != 0 {
+			fmt.Printf("Additional section with non-empty name\n")
+			os.Exit(1) // TODO: should handle it better
+		}
+		artype := readShortInteger(buf)
+		if artype == types.OPT {
+			packet.Edns = true
+			packet.EdnsBufferSize = readShortInteger(buf)
+			extrcode := readInteger(buf)
+			ednslength := readShortInteger(buf)
+			options := make([]byte, ednslength)
+			if ednslength > 0 {
+				n, error := buf.Read(options)
+				if error != nil || n != int(ednslength) {
+					if error == nil {
+						// Client left after leaving only a few bytes
+						return packet
+					} else {
+						fmt.Printf("Error in Read %d bytes: %s\n", n, error)
+						os.Exit(1) // TODO: should handle it better
+					}
+				}
+				over = false
+				counter := 0
+				for !over {
+					optcode := binary.BigEndian.Uint16(options[counter : counter+2])
+					if optcode == types.NSID {
+						packet.Nsid = true
+					}
+					optlen := int(binary.BigEndian.Uint16(options[counter+2 : counter+4]))
+					if optlen > 0 {
+						// TODO: this may run out of the array
+						_ = options[counter+4 : counter+4+optlen] // Yes, useless, I know
+					}
+					counter += (4 + optlen)
+					if counter >= len(options) {
+						over = true
+					}
+					if debug > 3 {
+						fmt.Printf("EDNS option code %d\n", optcode)
+					}
+
+				}
+			}
+			if debug > 2 {
+				fmt.Printf("EDNS0 found, buffer size is %d, extended rcode is %d, ", packet.EdnsBufferSize, extrcode)
+				if ednslength > 0 {
+					fmt.Printf("length of options is %d\n", ednslength)
+				} else {
+					fmt.Printf("no options\n")
+				}
+			}
+		} else {
+			// Ignore additional section if not EDNS
+		}
+	}
 	packet.Valid = true
 	return packet
 }
 
 func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacket, noresponse bool) {
-	var query types.DNSquery
+	var (
+		query           types.DNSquery
+		desiredresponse types.DNSresponse
+	)
 	noresponse = true
 	packet := parse(buf)
 	if !packet.Valid { // Invalid packet or client too impatient
@@ -166,15 +282,35 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 		response.Qsection[0].Qname = packet.Qsection[0].Qname
 		response.Qsection[0].Qclass = packet.Qsection[0].Qclass
 		response.Qsection[0].Qtype = packet.Qsection[0].Qtype
+		response.Edns = packet.Edns
+		response.Nsid = packet.Nsid
 		query.Client = remaddr
 		query.Qname = packet.Qsection[0].Qname
 		query.Qclass = packet.Qsection[0].Qclass
 		query.Qtype = packet.Qsection[0].Qtype
-		desiredresponse := responder.Respond(query)
+		if packet.Edns {
+			query.BufferSize = packet.EdnsBufferSize
+			response.EdnsBufferSize = packet.EdnsBufferSize
+		} else {
+			query.BufferSize = 512 // Traditional value
+			response.EdnsBufferSize = 512
+		}
+		if query.Qclass == types.CH && query.Qtype == types.TXT && (query.Qname == "hostname.bind" || query.Qname == "id.server") && servername != "" {
+			desiredresponse.Responsecode = types.NOERROR
+			desiredresponse.Ansection = make([]types.RR, 1)
+			desiredresponse.Ansection[0] = types.RR{
+				Name: query.Qname,
+				TTL: defaultTTL,
+				Type: types.TXT,
+				Class: types.IN,
+				Data: types.ToTXT(servername)}
+		} else {
+			desiredresponse = responder.Respond(query)
+		}
 		response.Rcode = desiredresponse.Responsecode
-		response.Ancount = uint16(len(desiredresponse.Asection))
+		response.Ancount = uint16(len(desiredresponse.Ansection))
 		if response.Ancount > 0 {
-			response.Asection = desiredresponse.Asection
+			response.Ansection = desiredresponse.Ansection
 		}
 		return
 	}
@@ -281,7 +417,10 @@ func udpListener(address *net.UDPAddr, comm chan bool) {
 func main() {
 	debugptr := flag.Int("debug", 0, "Set the debug level, the higher, the more verbose")
 	listen := flag.String("address", ":8053", "Set the port (+optional address) to listen at")
+	nameptr := flag.String("servername", "",
+		"Set the server name (and send it to clients)")
 	flag.Parse()
+	servername = *nameptr
 	debug = *debugptr
 	udpaddr, error := net.ResolveUDPAddr(*listen)
 	if error != nil {
