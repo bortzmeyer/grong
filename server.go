@@ -104,8 +104,8 @@ func readShortInteger(buf *bytes.Buffer) (uint16, bool) {
 	if error != nil || n != 2 {
 		if debug > 2 {
 			fmt.Printf("Error in Read of an int16: %s (%d bytes read)\n", error, n)
-			return 0, false
 		}
+		return 0, false
 	}
 	return binary.BigEndian.Uint16(slice[0:2]), true
 }
@@ -116,8 +116,8 @@ func readInteger(buf *bytes.Buffer) (uint32, bool) {
 	if error != nil || n != 4 {
 		if debug > 2 {
 			fmt.Printf("Error in Read of an int32: %s (%d bytes read)\n", error, n)
-			return 0, false
 		}
+		return 0, false
 	}
 	return binary.BigEndian.Uint32(slice[0:4]), true
 }
