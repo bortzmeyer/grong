@@ -122,6 +122,20 @@ Configuration file. What is idiomatic in Go? .INI ?
 Continue hardening against rogue packets. See the example
 test-scapy.py in the distribution.
 
+Michael Hoisie had a very good suggestion to turn GRONG into a
+package. He plans:
+1) all the source files should have a common package, like "grong".
+there shouldn't be a main package
+2) there could be a Responder interface, that looks like:
+type Responder interface {
+    Respond(query.DNSquery) DNSresponse
+}
+And all the various responders would implement this.
+3) The Makefile would have a format like (except modified for Grong):
+http://github.com/hoisie/web.go/blob/master/Makefile
+4) Instead of main() method, there would be a method like Run( resp
+Responder ) that takes a responder and starts the server
+
 DNSSEC (no, I'm joking)
 
 
