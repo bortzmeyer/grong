@@ -59,7 +59,7 @@ func aaaaSection(qname string, client net.IP) (result types.RR) {
 	return
 }
 
-func Respond(query types.DNSquery) types.DNSresponse {
+func Respond(query types.DNSquery, config map[string]interface{}) types.DNSresponse {
 	var (
 		result types.DNSresponse
 	)

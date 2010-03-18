@@ -33,22 +33,22 @@ var (
 	}
 
 	hostnamesoa = types.SOArecord{
-		Mname: "NOT-CONFIGURED.as112.example.net", // Put the real host name
-		Rname: "UNKNOWN.as112.example.net",        // Put your email address (with @ replaced by .)
-		Serial: 2003030100,
+		Mname:   "NOT-CONFIGURED.as112.example.net", // Put the real host name
+		Rname:   "UNKNOWN.as112.example.net",        // Put your email address (with @ replaced by .)
+		Serial:  2003030100,
 		Refresh: 3600,
-		Retry: 600,
-		Expire: 2592000,
+		Retry:   600,
+		Expire:  2592000,
 		Minimum: 15,
 	}
 
 	as112soa = types.SOArecord{
-		Mname: "prisoner.iana.org",
-		Rname: "hostmaster.root-servers.org",
-		Serial: 2002040800,
+		Mname:   "prisoner.iana.org",
+		Rname:   "hostmaster.root-servers.org",
+		Serial:  2002040800,
 		Refresh: 1800,
-		Retry: 900,
-		Expire: 604800,
+		Retry:   900,
+		Expire:  604800,
 		Minimum: 604800,
 	}
 )
@@ -57,11 +57,11 @@ func nsRecords(domain string) (result []types.RR) {
 	result = make([]types.RR, len(as112nameServers))
 	for i, text := range as112nameServers {
 		result[i] = types.RR{
-			Name: domain,
-			TTL: defaultTTL,
-			Type: types.NS,
+			Name:  domain,
+			TTL:   defaultTTL,
+			Type:  types.NS,
 			Class: types.IN,
-			Data: types.Encode(text),
+			Data:  types.Encode(text),
 		}
 	}
 	return
@@ -69,16 +69,16 @@ func nsRecords(domain string) (result []types.RR) {
 
 func soaRecord(domain string, soa types.SOArecord) (result types.RR) {
 	result = types.RR{
-		Name: domain,
-		TTL: defaultTTL,
-		Type: types.SOA,
+		Name:  domain,
+		TTL:   defaultTTL,
+		Type:  types.SOA,
 		Class: types.IN,
-		Data: types.EncodeSOA(soa),
+		Data:  types.EncodeSOA(soa),
 	}
 	return
 }
 
-func Respond(query types.DNSquery) (result types.DNSresponse) {
+func Respond(query types.DNSquery, config map[string]interface{}) (result types.DNSresponse) {
 	result.Ansection = nil
 	qname := strings.ToLower(query.Qname)
 	if query.Qclass == types.IN {
@@ -105,11 +105,11 @@ func Respond(query types.DNSquery) (result types.DNSresponse) {
 				result.Ansection = make([]types.RR, len(hostnameAnswers))
 				for i, text := range hostnameAnswers {
 					result.Ansection[i] = types.RR{
-						Name: query.Qname,
-						TTL: defaultTTL,
-						Type: types.TXT,
+						Name:  query.Qname,
+						TTL:   defaultTTL,
+						Type:  types.TXT,
 						Class: types.IN,
-						Data: types.ToTXT(text),
+						Data:  types.ToTXT(text),
 					}
 				}
 			case types.NS:

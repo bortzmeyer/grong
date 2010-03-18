@@ -66,9 +66,9 @@ It must be in package "responder" and imports package "types". Read
 The front-end checks that the request is a query and, if so, calls the
 responder. The prototype is:
 
-func Respond(query types.DNSquery) types.DNSresponse 
+func Respond(query types.DNSquery, config map[string]interface{}) types.DNSresponse 
 
-To see what is available for you in the query, see the descriptio of
+To see what is available for you in the query, see the description of
 type DNSquery.
 
 In the DNSresponse, RRs (Resource Records) have to be in the wire
@@ -76,6 +76,25 @@ format (the front-end does not know the format of the RR, to keep it
 generic). For instance, data in TXT RR has to be {length,
 value}. There are some utilities functions in types to help you to do
 so.
+
+The map named "config" above gives you access to global variables. You
+can never be sure what variables are defined so it is careful to test
+their existence before using them. Typical variables (read the source
+code of server.go to find others) are:
+* debug: an integer for the debug level (0 = no debug, 1 = a bit of
+  debug, etc). Always set.
+* servername: if set, a string identifying this specific name server
+  (for instance "cdg1.a.ns.example.net").
+* zone: if set, the name of the zone currently served
+
+Since the map stores various types (the "interface{}", which means the
+empty interface, something which is fulfilled by every possible
+object), you often have to convert data with the reflect package. For
+instance, to get the integer value of debug:
+debug, exists := myconfig["debug"]
+if exists {
+	debugi := reflect.NewValue(debug).(*reflect.IntValue).Get()
+}
 
 Implementation notes
 ********************
@@ -87,10 +106,9 @@ are behind BIND.
 TODO
 ****
 
-Give the responder some global info such as the debug level.
-
 Pass unknown command-line options to the responder. Options Qname for
-the reflector and various TXT for as112
+the reflector and various TXT for as112. Or use the global config
+object? For instance, config["zone"] should be common enough.
 
 Use the log package
 

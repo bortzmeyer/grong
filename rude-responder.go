@@ -4,7 +4,7 @@ import (
 	"./types"
 )
 
-func Respond(query types.DNSquery) types.DNSresponse {
+func Respond(query types.DNSquery, config map[string]interface{}) types.DNSresponse {
 	var (
 		result types.DNSresponse
 	)

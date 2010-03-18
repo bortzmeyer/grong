@@ -11,16 +11,20 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"./responder"
 	"strings"
+	"reflect"
+	"./responder"
 	"./types"
 )
 
 const defaultTTL = 3600
 
 var (
-	debug      int
-	servername string
+	/* Configuration, indexed by keywords, for instance "debug" or
+	"servername" */
+	globalConfig map[string]interface{}
+	debug        int // Not mandatory but it is simpler to use than
+	// globalConfig["debug"], which has type interface{}
 )
 
 func serialize(packet types.DNSpacket) []byte {
@@ -80,19 +84,23 @@ func serialize(packet types.DNSpacket) []byte {
 		binary.BigEndian.PutUint16(result[last+1:last+3], types.OPT)
 		binary.BigEndian.PutUint16(result[last+3:last+5], packet.EdnsBufferSize)
 		binary.BigEndian.PutUint32(result[last+5:last+9], 0)
-		if packet.Nsid && servername != "" {
-			binary.BigEndian.PutUint16(result[last+9:last+11],
-				uint16(4+len(servername)))
-			binary.BigEndian.PutUint16(result[last+11:last+13], types.NSID)
-			binary.BigEndian.PutUint16(result[last+13:last+15], uint16(len(servername)))
-			for i, c := range servername {
-				result[last+15+i] = uint8(c)
+		servernamei, nameexists := globalConfig["servername"]
+		if nameexists {
+			servername := reflect.NewValue(servernamei).(*reflect.StringValue).Get()
+			if packet.Nsid {
+				binary.BigEndian.PutUint16(result[last+9:last+11],
+					uint16(4+len(servername)))
+				binary.BigEndian.PutUint16(result[last+11:last+13], types.NSID)
+				binary.BigEndian.PutUint16(result[last+13:last+15], uint16(len(servername)))
+				for i, c := range servername {
+					result[last+15+i] = uint8(c)
+				}
+				last += 15 + int(len(servername))
+			} else {
+				// Zero EDNS options
+				binary.BigEndian.PutUint16(result[last+9:last+11], 0)
+				last += 11
 			}
-			last += 15 + int(len(servername))
-		} else {
-			// Zero EDNS options
-			binary.BigEndian.PutUint16(result[last+9:last+11], 0)
-			last += 11
 		}
 	}
 	return result[0:last]
@@ -351,7 +359,11 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 			query.BufferSize = 512 // Traditional value
 			response.EdnsBufferSize = 512
 		}
-		if query.Qclass == types.CH && query.Qtype == types.TXT && (query.Qname == "hostname.bind" || query.Qname == "id.server") && servername != "" {
+		servernamei, nameexists := globalConfig["servername"]
+		if query.Qclass == types.CH && query.Qtype == types.TXT &&
+			(query.Qname == "hostname.bind" ||
+				query.Qname == "id.server") && nameexists {
+			servername := reflect.NewValue(servernamei).(*reflect.StringValue).Get()
 			desiredresponse.Responsecode = types.NOERROR
 			desiredresponse.Ansection = make([]types.RR, 1)
 			desiredresponse.Ansection[0] = types.RR{
@@ -361,7 +373,7 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 				Class: types.IN,
 				Data:  types.ToTXT(servername)}
 		} else {
-			desiredresponse = responder.Respond(query)
+			desiredresponse = responder.Respond(query, globalConfig)
 		}
 		response.Rcode = desiredresponse.Responsecode
 		response.Ancount = uint16(len(desiredresponse.Ansection))
@@ -490,8 +502,11 @@ func main() {
 	nameptr := flag.String("servername", "",
 		"Set the server name (and send it to clients)")
 	flag.Parse()
-	servername = *nameptr
+	if *nameptr != "" {
+		globalConfig["servername"] = *nameptr
+	}
 	debug = *debugptr
+	globalConfig["debug"] = *debugptr
 	udpaddr, error := net.ResolveUDPAddr(*listen)
 	if error != nil {
 		fmt.Printf("Cannot parse \"%s\": %s\n", *listen, error)
