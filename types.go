@@ -9,6 +9,7 @@ package types
 import (
 	"net"
 	"strings"
+	"fmt"
 	"bytes"
 	"encoding/binary"
 )
@@ -21,17 +22,19 @@ type DNSresponse struct {
 	Ansection    []RR
 	// TODO: allow to have other sections?
 }
+// TODO: provides a String() method
 
 // This type is used for the communication between the server (the
 // front-end and its responder (the back-end). So, only a part of DNS
 // info can be represented.
 type DNSquery struct {
-	Client net.Addr
-	Qname  string
-	Qclass uint16
-	Qtype  uint16
+	Client     net.Addr
+	Qname      string
+	Qclass     uint16
+	Qtype      uint16
 	BufferSize uint16
 }
+// TODO: provides a String() method
 
 // Probably obsolete, will be deleted
 type DNSheader struct {
@@ -47,7 +50,7 @@ type DNSpacket struct {
 	Opcode                             uint
 	Rcode                              uint
 	Edns                               bool
-        EdnsBufferSize                     uint16
+	EdnsBufferSize                     uint16
 	Query, Recursion, Authoritative    bool
 	Qdcount, Ancount, Arcount, Nscount uint16 // Question, Answer, Additional and Authority. May be use the implicit length
 	// of the following arrays, instead?
@@ -55,7 +58,12 @@ type DNSpacket struct {
 	Ansection []RR // Answer section
 	Arsection []RR // Additional section
 	// TODO: other sections
-        Nsid                               bool // RFC 5001
+	Nsid bool // RFC 5001
+}
+
+func (packet DNSpacket) String() string {
+	return fmt.Sprintf("Query is %t, Opcode is %d, Recursion is %t, Rcode is %d, FQDN is %s, type is %d, class is %d",
+		packet.Query, packet.Opcode, packet.Recursion, packet.Rcode, packet.Qsection[0].Qname, packet.Qsection[0].Qtype, packet.Qsection[0].Qclass)
 }
 
 // Entries in the Question section. RFC 1035, section 4.1.2
@@ -113,8 +121,8 @@ const (
 	IQUERY   = 1
 	STATUS   = 2
 
-        // EDNS Option codes
-        NSID = 3
+	// EDNS Option codes
+	NSID = 3
 )
 
 // Various utility functions

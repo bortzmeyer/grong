@@ -28,6 +28,8 @@ var (
 )
 
 func serialize(packet types.DNSpacket) []byte {
+	// TODO: rewrite result as an io.Writer so we can just use Write? See
+	// the example in "Effective Go", section "Pointers vs Values"
 	result := make([]byte, packet.EdnsBufferSize)
 	// ID
 	binary.BigEndian.PutUint16(result[0:2], packet.Id)
@@ -52,32 +54,37 @@ func serialize(packet types.DNSpacket) []byte {
 		os.Exit(1) // TODO: better handling
 	}
 	encoded_qname := types.Encode(packet.Qsection[0].Qname)
-	last := 0
-	for i, c := range encoded_qname {
-		result[12+i] = c
-		last = i
+	n := copy(result[12:], encoded_qname)
+	if n != len(encoded_qname) {
+		fmt.Printf("Fatal: copying %d bytes from a name of %d bytes\n",
+			n, len(encoded_qname))
+		os.Exit(1)
 	}
-	binary.BigEndian.PutUint16(result[12+last+1:], packet.Qsection[0].Qtype)
-	binary.BigEndian.PutUint16(result[12+last+3:], packet.Qsection[0].Qclass)
-	last = 12 + last + 5
+	last := 12 + len(encoded_qname)
+	binary.BigEndian.PutUint16(result[last:], packet.Qsection[0].Qtype)
+	binary.BigEndian.PutUint16(result[last+2:], packet.Qsection[0].Qclass)
+	last = last + 4
 	for rrnum, rr := range packet.Ansection {
 		encoded_qname := types.Encode(packet.Ansection[rrnum].Name)
-		n := 0
-		for i, c := range encoded_qname {
-			result[last+i] = c
-			n++
+		n = copy(result[last:], encoded_qname)
+		if n != len(encoded_qname) {
+			fmt.Printf("Fatal: copying %d bytes from a name of %d bytes\n",
+				n, len(encoded_qname))
+			os.Exit(1)
 		}
-		binary.BigEndian.PutUint16(result[last+n:last+n+2], rr.Type)
-		binary.BigEndian.PutUint16(result[last+n+2:last+n+4], rr.Class)
-		binary.BigEndian.PutUint32(result[last+n+4:last+n+8], rr.TTL)
-		binary.BigEndian.PutUint16(result[last+n+8:last+n+10], uint16(len(rr.Data)))
-		last = last + n + 10
-		n = 0
-		for i, c := range packet.Ansection[rrnum].Data {
-			result[last+i] = c
-			n++
+		last = last + len(encoded_qname)
+		binary.BigEndian.PutUint16(result[last:last+2], rr.Type)
+		binary.BigEndian.PutUint16(result[last+2:last+4], rr.Class)
+		binary.BigEndian.PutUint32(result[last+4:last+8], rr.TTL)
+		binary.BigEndian.PutUint16(result[last+8:last+10], uint16(len(rr.Data)))
+		last = last + 10
+		n = copy(result[last:], packet.Ansection[rrnum].Data)
+		if n != len(packet.Ansection[rrnum].Data) {
+			fmt.Printf("Fatal: copying %d bytes from data of %d bytes\n",
+				n, len(packet.Ansection[rrnum].Data))
+			os.Exit(1)
 		}
-		last = last + n
+		last = last + len(packet.Ansection[rrnum].Data)
 	}
 	if packet.Edns {
 		result[last] = 0 // EDNS0's Name
@@ -92,10 +99,13 @@ func serialize(packet types.DNSpacket) []byte {
 					uint16(4+len(servername)))
 				binary.BigEndian.PutUint16(result[last+11:last+13], types.NSID)
 				binary.BigEndian.PutUint16(result[last+13:last+15], uint16(len(servername)))
-				for i, c := range servername {
-					result[last+15+i] = uint8(c)
+				last += 15
+				n = copy(result[last:], []byte(servername))
+				if n != len(servername) {
+					fmt.Printf("Cannot copy servername (length %d bytes), %d bytes actually copied\n", len(servername), n)
+					os.Exit(1)
 				}
-				last += 15 + int(len(servername))
+				last += int(len(servername))
 			} else {
 				// Zero EDNS options
 				binary.BigEndian.PutUint16(result[last+9:last+11], 0)
@@ -329,9 +339,7 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 		return
 	}
 	if debug > 2 {
-		fmt.Printf("Query is %t, Opcode is %d, Recursion is %t, Rcode is %d\n",
-			packet.Query, packet.Opcode, packet.Recursion, packet.Rcode)
-		fmt.Printf("FQDN is %s, type is %d, class is %d\n", packet.Qsection[0].Qname, packet.Qsection[0].Qtype, packet.Qsection[0].Qclass)
+		fmt.Printf("%s\n", packet)
 	}
 	if packet.Query && packet.Opcode == types.STDQUERY {
 		if debug > 2 {
@@ -502,6 +510,7 @@ func main() {
 	nameptr := flag.String("servername", "",
 		"Set the server name (and send it to clients)")
 	flag.Parse()
+	globalConfig = make(map[string]interface{})
 	if *nameptr != "" {
 		globalConfig["servername"] = *nameptr
 	}
