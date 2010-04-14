@@ -27,6 +27,20 @@ var (
 	// globalConfig["debug"], which has type interface{}
 )
 
+func fatal(msg string) {
+	fmt.Fprintf(os.Stderr, "%s\n", msg)
+	os.Exit(1)
+}
+
+// TODO: it would be nice to have a "fatal bool" parameter to indicate
+// if we should stop but Go's functions do not have parameters with
+// default values :-(
+func checkError(msg string, error os.Error) {
+	if error != nil {
+		fatal(fmt.Sprintf("%s: %s", msg, error))
+	}
+}
+
 func serialize(packet types.DNSpacket) []byte {
 	// TODO: rewrite result as an io.Writer so we can just use Write? See
 	// the example in "Effective Go", section "Pointers vs Values"
@@ -50,15 +64,13 @@ func serialize(packet types.DNSpacket) []byte {
 		result[11] = 0
 	}
 	if len(packet.Qsection) != 1 {
-		fmt.Printf("Fatal: Qsection's length is not 1: %d\n", len(packet.Qsection))
-		os.Exit(1) // TODO: better handling
+		fatal(fmt.Sprintf("Qsection's length is not 1: %d\n", len(packet.Qsection)))
 	}
 	encoded_qname := types.Encode(packet.Qsection[0].Qname)
 	n := copy(result[12:], encoded_qname)
 	if n != len(encoded_qname) {
-		fmt.Printf("Fatal: copying %d bytes from a name of %d bytes\n",
-			n, len(encoded_qname))
-		os.Exit(1)
+		fatal(fmt.Sprintf("Copying %d bytes from a name of %d bytes\n",
+			n, len(encoded_qname)))
 	}
 	last := 12 + len(encoded_qname)
 	binary.BigEndian.PutUint16(result[last:], packet.Qsection[0].Qtype)
@@ -68,9 +80,8 @@ func serialize(packet types.DNSpacket) []byte {
 		encoded_qname := types.Encode(packet.Ansection[rrnum].Name)
 		n = copy(result[last:], encoded_qname)
 		if n != len(encoded_qname) {
-			fmt.Printf("Fatal: copying %d bytes from a name of %d bytes\n",
-				n, len(encoded_qname))
-			os.Exit(1)
+			fatal(fmt.Sprintf("Copying %d bytes from a name of %d bytes\n",
+				n, len(encoded_qname)))
 		}
 		last = last + len(encoded_qname)
 		binary.BigEndian.PutUint16(result[last:last+2], rr.Type)
@@ -80,9 +91,8 @@ func serialize(packet types.DNSpacket) []byte {
 		last = last + 10
 		n = copy(result[last:], packet.Ansection[rrnum].Data)
 		if n != len(packet.Ansection[rrnum].Data) {
-			fmt.Printf("Fatal: copying %d bytes from data of %d bytes\n",
-				n, len(packet.Ansection[rrnum].Data))
-			os.Exit(1)
+			fatal(fmt.Sprintf("Copying %d bytes from data of %d bytes\n",
+				n, len(packet.Ansection[rrnum].Data)))
 		}
 		last = last + len(packet.Ansection[rrnum].Data)
 	}
@@ -102,8 +112,7 @@ func serialize(packet types.DNSpacket) []byte {
 				last += 15
 				n = copy(result[last:], []byte(servername))
 				if n != len(servername) {
-					fmt.Printf("Cannot copy servername (length %d bytes), %d bytes actually copied\n", len(servername), n)
-					os.Exit(1)
+					fatal(fmt.Sprintf("Cannot copy servername (length %d bytes), %d bytes actually copied\n", len(servername), n))
 				}
 				last += int(len(servername))
 			} else {
@@ -463,10 +472,7 @@ func tcphandle(connection net.Conn) {
 
 func tcpListener(address *net.TCPAddr, comm chan bool) {
 	listener, error := net.ListenTCP("udp", address)
-	if error != nil {
-		fmt.Printf("Cannot listen: %s\n", error)
-		os.Exit(1)
-	}
+	checkError("Cannot listen", error)
 	for {
 		connection, error := listener.Accept()
 		if error != nil {
@@ -483,10 +489,7 @@ func tcpListener(address *net.TCPAddr, comm chan bool) {
 
 func udpListener(address *net.UDPAddr, comm chan bool) {
 	listener, error := net.ListenUDP("udp", address)
-	if error != nil {
-		fmt.Printf("Cannot listen: %s\n", error)
-		os.Exit(1)
-	}
+	checkError("Cannot listen", error)
 	for {
 		message := make([]byte, 512) // 512 is a reasonable upper limit
 		// for *incoming* queries
@@ -517,20 +520,15 @@ func main() {
 	debug = *debugptr
 	globalConfig["debug"] = *debugptr
 	udpaddr, error := net.ResolveUDPAddr(*listen)
-	if error != nil {
-		fmt.Printf("Cannot parse \"%s\": %s\n", *listen, error)
-		os.Exit(1)
-	}
+	checkError(fmt.Sprintf("Cannot parse \"%s\": %s\n", *listen), error)
 	tcpaddr, error := net.ResolveTCPAddr(*listen)
-	if error != nil {
-		fmt.Printf("Cannot parse \"%s\": %s\n", *listen, error)
-		os.Exit(1)
-	}
+	checkError(fmt.Sprintf("Cannot parse \"%s\": %s\n", *listen), error)
 	udpchan := make(chan bool)
 	go udpListener(udpaddr, udpchan)
 	tcpchan := make(chan bool)
 	go tcpListener(tcpaddr, tcpchan)
 
-	<-udpchan // Just to wait the listener, otherwise, the Go runtime ends even if there are live goroutines
+	<-udpchan // Just to wait the listener, otherwise, the Go runtime ends
+	// even if there are live goroutines
 	<-tcpchan
 }
