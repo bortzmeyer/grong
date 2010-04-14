@@ -116,7 +116,10 @@ Finish the AS112 responder (SOA and NS records)
 
 The ability to listen to more than one address (but not all). Can I
 give several -address option to the flag module? If so, it probably
-just means firing several udpListeners and several tcpListeners
+just means firing several udpListeners and several tcpListeners. Since
+it interacts with the IPv4/IPv6 listening abilities, we may have to
+wait for the solution of
+<http://code.google.com/p/go/issues/detail?id=679>.
 
 Debugging of Go runtime performance issues, hit it harder with
 queryperf!
