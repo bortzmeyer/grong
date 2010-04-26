@@ -21,7 +21,7 @@ The official source is <http://github.com/bortzmeyer/grong>
 Usage
 *****
 
-./dnsserver [-address="[ADDRESS]:PORT"] [-debug=N]
+./grong [-address="[ADDRESS]:PORT"] [-debug=N]
 
 Run with -h to see the defaults (and the other, less common, options)
 

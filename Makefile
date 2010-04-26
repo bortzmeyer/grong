@@ -2,26 +2,26 @@ include $(GOROOT)/src/Make.$(GOARCH)
 
 TARBALL=/tmp/grong.tar.gz
 
-all: server
+all: grong
 
-test: server
-	./server -debug=4
+test: grong
+	./grong -debug=4
 
-server.$O: responder.$O types.$O
+grong.$O: responder.$O types.$O
 
 responder.$O: types.$O
 
 %.$O: %.go 
 	${GC} $<
 
-server: server.$O
+grong: server.$O
 	${LD} -o $@ server.$O
 
 dist: distclean
 	(cd ..; tar czvf ${TARBALL} grong/*)
 
 clean:
-	rm -f server *.$O *.a
+	rm -f grong *.$O *.a
 
 distclean: clean
 	rm -f *~ responder.go
