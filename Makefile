@@ -7,7 +7,7 @@ all: grong
 test: grong
 	./grong -debug=4
 
-grong.$O: responder.$O types.$O
+server.$O: responder.$O types.$O
 
 responder.$O: types.$O
 
