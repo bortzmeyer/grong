@@ -5,7 +5,7 @@ TARBALL=/tmp/grong.tar.gz
 all: grong
 
 test: grong
-	./grong -debug=4 -servername "grong.dns.test"
+	./grong -debug=4 -nodaemon -servername "grong.dns.test"
 
 server.$O: responder.$O types.$O
 

@@ -21,7 +21,7 @@ The official source is <http://github.com/bortzmeyer/grong>
 Usage
 *****
 
-./grong [-address="[ADDRESS]:PORT"] [-debug=N]
+./grong [-address="[ADDRESS]:PORT"] [-debug=N] [-nodaemon]
 
 Run with -h to see the defaults (and the other, less common, options)
 
@@ -110,8 +110,6 @@ TODO
 Pass unknown command-line options to the responder. Options Qname for
 the reflector and various TXT for as112. Or use the global config
 object? For instance, config["zone"] should be common enough.
-
-Use the log package
 
 Finish the AS112 responder (SOA and NS records)
 
