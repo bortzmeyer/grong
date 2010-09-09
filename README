@@ -69,7 +69,8 @@ responder. The prototype is:
 func Respond(query types.DNSquery, config map[string]interface{}) types.DNSresponse 
 
 To see what is available for you in the query, see the description of
-type DNSquery.
+type DNSquery. Important: the query name (Qname) is always in
+lowercase, to ease comparisons.
 
 In the DNSresponse, RRs (Resource Records) have to be in the wire
 format (the front-end does not know the format of the RR, to keep it

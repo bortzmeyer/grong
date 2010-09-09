@@ -366,7 +366,7 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 		response.Edns = packet.Edns
 		response.Nsid = packet.Nsid
 		query.Client = remaddr
-		query.Qname = packet.Qsection[0].Qname
+		query.Qname = strings.ToLower(packet.Qsection[0].Qname)
 		query.Qclass = packet.Qsection[0].Qclass
 		query.Qtype = packet.Qsection[0].Qtype
 		if packet.Edns {
