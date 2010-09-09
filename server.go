@@ -239,7 +239,11 @@ func parse(buf *bytes.Buffer) (types.DNSpacket, bool) {
 		labels[nlabels-1] = string(label)
 	}
 	packet.Qsection = make([]types.Qentry, packet.Qdcount)
-	packet.Qsection[0].Qname = strings.Join(labels, ".")
+	if len(labels) == 0 { // A special case, the root (see issue #4)
+		packet.Qsection[0].Qname = "."
+	} else {
+		packet.Qsection[0].Qname = strings.Join(labels, ".")
+	}
 	packet.Qsection[0].Qtype, ok = readShortInteger(buf)
 	if !ok {
 		return packet, false
