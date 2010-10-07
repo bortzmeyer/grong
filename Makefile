@@ -1,11 +1,13 @@
 include $(GOROOT)/src/Make.inc
 
 TARBALL=/tmp/grong.tar.gz
+DEFAULTPORT=8053
 
 all: grong
 
 test: grong
-	./grong -debug=4 -nodaemon -servername "grong.dns.test"
+	@echo "Running server on port $(DEFAULTPORT)..."
+	./grong -debug=4 -nodaemon -address ":$(DEFAULTPORT)" -servername "grong.dns.test"
 
 server.$O: responder.$O types.$O
 

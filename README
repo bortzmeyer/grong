@@ -125,12 +125,16 @@ queryperf!
 
 Test with gccgo
 
-Implements id.server and version.bind
+Implements version.server (and version.bind and hostname.bind ?)
 
 See if we can replace a good part of package "types" by standard
-package net/ <http://golang.org/src/pkg/net/dnsmsg.go>
+package net/ <http://golang.org/src/pkg/net/dnsmsg.go> It does not
+seem easy, the dns* files do not export anything outside of package
+net, they are meant for internal use only.
 
-Daemonize <http://groups.google.com/group/golang-nuts/browse_thread/thread/2b29d93b90501a4b/95242bfb7ae0549e>
+Daemonizing seems very difficult with Go
+<http://groups.google.com/group/golang-nuts/browse_thread/thread/2b29d93b90501a4b/95242bfb7ae0549e>
+In the mean time, nohup + & + disown seems the only solution.
 
 A name server with data, for instance able to serve a zone with a
 simple setup, one SOA, a few NS, and one A record for www.$ORIGIN. The

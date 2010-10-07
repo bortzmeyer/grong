@@ -340,7 +340,9 @@ func parse(buf *bytes.Buffer) (types.DNSpacket, bool) {
 				}
 			}
 		} else {
-			// Ignore additional section if not EDNS
+			if debug > 2 { 
+				debuglogger.Logf("Ignore additional section if not EDNS")
+			}
 		}
 	}
 	return packet, true
@@ -354,6 +356,9 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 	noresponse = true
 	packet, valid := parse(buf)
 	if !valid { // Invalid packet or client too impatient
+		if debug > 3 {
+			debuglogger.Logf("Invalid packet received\n")
+		}
 		return
 	}
 	if debug > 2 {
