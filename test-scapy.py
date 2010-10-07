@@ -46,7 +46,14 @@ if dst is None:
     sys.exit(1)
 
 if dst == "127.0.0.1" or dst == "::1": # TODO: not sufficient because there are also global addresses that are on the machine
+    old_setting=conf.L3socket
     conf.L3socket=L3RawSocket # http://wiki.spiritofhack.net/index.php/Scapy-erreurs#Je_ne_peux_pas_pinguer_127.0.0.1._Scapy_ne_marche_pas_avec_127.0.0.1_ni_localhost
+    # Test it (Scapy bug #193 http://trac.secdev.org/scapy/ticket/193)
+    try:
+        sr1(p, timeout=0.01)
+    except NameError:
+        print >>sys.stderr, "Warning, setting the local link as raw failed (Scapy bug #193)"
+        conf.L3socket=old_setting
     
 p = IP(dst=dst)/UDP(sport=RandShort(),dport=dport)/DNS(rd=1,qd=DNSQR(qname=qname))
 
