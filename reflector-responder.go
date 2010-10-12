@@ -15,6 +15,7 @@ package responder
 
 import (
 	"net"
+	"reflect"
 	"./types"
 )
 
@@ -66,8 +67,15 @@ func Respond(query types.DNSquery, config map[string]interface{}) types.DNSrespo
 	result.Ansection = nil
 	tcpAddr, _ := net.ResolveTCPAddr(query.Client.String())
 	ipaddressV4 := tcpAddr.IP.To4()
+	zonei, zoneset := config["zonename"]
+	zone := ""
+	if zoneset {
+		zone = reflect.NewValue(zonei).(*reflect.StringValue).Get()
+	}
 	switch {
 	case query.Qclass != types.IN:
+		result.Responsecode = types.SERVFAIL
+	case zone != "" && query.Qname != zone:
 		result.Responsecode = types.SERVFAIL
 	case query.Qtype == types.A:
 		result.Responsecode = types.NOERROR
@@ -108,4 +116,5 @@ func Respond(query types.DNSquery, config map[string]interface{}) types.DNSrespo
 	return result
 }
 
-func init() {}
+func Init(firstoption int) {
+}

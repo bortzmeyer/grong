@@ -7,7 +7,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"flag"
+	"./myflag"
 	"fmt"
 	"net"
 	"os"
@@ -27,9 +27,11 @@ var (
 	"servername" */
 	globalConfig map[string]interface{}
 	debug        int // Not mandatory but it is simpler to use than
-	// globalConfig["debug"], which has type interface{}
+	// globalConfig["debug"], which has type interface{}. Same thing for the
+	// others:
 	daemon                                bool
 	debuglogger, infologger, crisislogger *log.Logger
+	zone                                  string
 )
 
 func fatal(msg string) {
@@ -340,7 +342,7 @@ func parse(buf *bytes.Buffer) (types.DNSpacket, bool) {
 				}
 			}
 		} else {
-			if debug > 2 { 
+			if debug > 2 {
 				debuglogger.Logf("Ignore additional section if not EDNS")
 			}
 		}
@@ -527,10 +529,27 @@ func main() {
 	listen := flag.String("address", ":8053", "Set the port (+optional address) to listen at")
 	nameptr := flag.String("servername", "",
 		"Set the server name (and send it to clients)")
+	helpptr := flag.Bool("help", false, "Displays usage instructions")
+	zoneptr := flag.String("domain", "", "Set the name of the zone we are authoritative for")
+
 	flag.Parse()
+	help := *helpptr
+	if help {
+		fmt.Printf("Usage of %s:\n", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(0)
+	}
 	globalConfig = make(map[string]interface{})
+	namemsg := ""
 	if *nameptr != "" {
 		globalConfig["servername"] = *nameptr
+		namemsg = fmt.Sprintf(" %s", *nameptr)
+	}
+	zonemsg := ""
+	if *zoneptr != "" {
+		zone = strings.ToLower(*zoneptr)
+		globalConfig["zonename"] = zone
+		zonemsg = fmt.Sprintf(" on zone %s", zone)
 	}
 	debug = *debugptr
 	globalConfig["debug"] = *debugptr
@@ -555,7 +574,8 @@ func main() {
 		crisislogger = log.New(os.Stderr, nil, "[FATAL] ",
 			loggerOptions)
 	}
-	infologger.Logf("%s", "Starting...")
+	responder.Init(flag.LastOption())
+	infologger.Logf("%s", fmt.Sprintf("Starting%s%s...", namemsg, zonemsg))
 	udpchan := make(chan bool)
 	go udpListener(udpaddr, udpchan)
 	tcpchan := make(chan bool)

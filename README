@@ -21,9 +21,9 @@ The official source is <http://github.com/bortzmeyer/grong>
 Usage
 *****
 
-./grong [-address="[ADDRESS]:PORT"] [-debug=N] [-nodaemon]
+./grong [-address="[ADDRESS]:PORT"] [-debug=N] [-nodaemon] [-domain="DOMAIN NAME"]
 
-Run with -h to see the defaults (and the other, less common, options)
+Run with -help to see the defaults (and the other, less common, options)
 
 The -address option takes either a port (in the syntax ":NNN"), in
 that case GRONG listens on all IP addresses, or one address (in the
@@ -31,13 +31,18 @@ syntax "x.y.z.T:NNN" for IPv4 and "[xxxx:yyyy::zzzz]:NNN" for
 IPv6). There is currently no way to listen on some (but not all) of the IP
 addresses.
 
+The -domain option takes a domain name, which will be the name of the
+zone for which the name server will be authoritative for. Not all
+responders use it.
+
 The back-end is choosen at compile-time only (I have no idea about the
 support for dynamic linking in Go)
 
 Among the provided responders:
 * rude-responder: responds REFUSED to every query
 * reflector-responder: responds with the IP address of the client (for TXT 
-  requests, in text form, for A or AAAA requests, as binary)
+  requests, in text form, for A or AAAA requests, as binary). -domain indicates 
+  the zone name it uses (e.g. whoami.example.net)
 * as112: an AS 112 name server (see <http://www.as112.net/>)
 
 For the person who compiles
@@ -86,7 +91,8 @@ code of server.go to find others) are:
   debug, etc). Always set.
 * servername: if set, a string identifying this specific name server
   (for instance "cdg1.a.ns.example.net").
-* zone: if set, the name of the zone currently served
+* zonename: if set, the name of the zone currently served (for instance 
+  "myself.example.net")
 
 Since the map stores various types (the "interface{}", which means the
 empty interface, something which is fulfilled by every possible
@@ -97,6 +103,14 @@ if exists {
 	debugi := reflect.NewValue(debug).(*reflect.IntValue).Get()
 }
 
+The responder must also provide a function:
+
+func Init(firstoption int) 
+
+which will be called at server startup and which can be used to
+process additional command-line flags (see as112.go for a good
+example) or any other stuff.
+
 Implementation notes
 ********************
 
@@ -106,10 +120,6 @@ are behind BIND.
 
 TODO
 ****
-
-Pass unknown command-line options to the responder. Options Qname for
-the reflector and various TXT for as112. Or use the global config
-object? For instance, config["zone"] should be common enough.
 
 Finish the AS112 responder (SOA and NS records)
 
@@ -134,7 +144,8 @@ net, they are meant for internal use only.
 
 Daemonizing seems very difficult with Go
 <http://groups.google.com/group/golang-nuts/browse_thread/thread/2b29d93b90501a4b/95242bfb7ae0549e>
-In the mean time, nohup + & + disown seems the only solution.
+In the mean time, nohup + & + disown seems the only solution. Provide
+an example at least for Debian, using start-stop-daemon?
 
 A name server with data, for instance able to serve a zone with a
 simple setup, one SOA, a few NS, and one A record for www.$ORIGIN. The

@@ -9,7 +9,7 @@ test: grong
 	@echo "Running server on port $(DEFAULTPORT)..."
 	./grong -debug=4 -nodaemon -address ":$(DEFAULTPORT)" -servername "grong.dns.test"
 
-server.$O: responder.$O types.$O
+server.$O: responder.$O types.$O myflag.$O
 
 responder.$O: types.$O
 

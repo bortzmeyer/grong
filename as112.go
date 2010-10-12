@@ -2,6 +2,10 @@
 
 Stephane Bortzmeyer <stephane+grong@bortzmeyer.org>
 
+ Example of use:
+
+ grong -servername "grong.cloud.as112.test" -- -email toto.example.net -hostname me.as112.net -location "In the cloud"
+
 */
 
 package responder
@@ -9,7 +13,10 @@ package responder
 import (
 	"regexp"
 	"strings"
+	"fmt"
+	"os"
 	"./types"
+	"./myflag"
 )
 
 const as112Regexp = "(168\\.192\\.in-addr\\.arpa|154\\.169\\.in-addr\\.arpa|16\\.172\\.in-addr\\.arpa|17\\.172\\.in-addr\\.arpa|18\\.172\\.in-addr\\.arpa|19\\.172\\.in-addr\\.arpa|20\\.172\\.in-addr\\.arpa|21\\.172\\.in-addr\\.arpa|22\\.172\\.in-addr\\.arpa|23\\.172\\.in-addr\\.arpa|24\\.172\\.in-addr\\.arpa|25\\.172\\.in-addr\\.arpa|26\\.172\\.in-addr\\.arpa|27\\.172\\.in-addr\\.arpa|28\\.172\\.in-addr\\.arpa|29\\.172\\.in-addr\\.arpa|30\\.172\\.in-addr\\.arpa|31\\.172\\.in-addr\\.arpa|10\\.in-addr\\.arpa)$"
@@ -33,8 +40,8 @@ var (
 	}
 
 	hostnamesoa = types.SOArecord{
-		Mname:   "NOT-CONFIGURED.as112.example.net", // Put the real host name
-		Rname:   "UNKNOWN.as112.example.net",        // Put your email address (with @ replaced by .)
+		Mname:   "NOT-CONFIGURED-use-hostname-option.as112.example.net", // Put the real hostname with the -hostname command-line option. We do not use -server which has lightly different semantics.
+		Rname:   "UNKNOWN-use-email-option.as112.example.net",           // Put your email address (with @ replaced by .) with the -email command-line option
 		Serial:  2003030100,
 		Refresh: 3600,
 		Retry:   600,
@@ -126,4 +133,31 @@ func Respond(query types.DNSquery, config map[string]interface{}) (result types.
 		result.Responsecode = types.SERVFAIL
 	}
 	return result
+}
+
+func Init(firstoption int) {
+	flag.Reinit(firstoption)
+	helpptr := flag.Bool("help", false, "Displays usage instructions")
+	emailptr := flag.String("email", "",
+		"Set the email address of the manager for this server (in DNS format, with . instead of @)")
+	locationptr := flag.String("location", "",
+		"Set the location of this server, for instance \"ALIX exchange point in Somewhere, Somestate\"")
+	hostnameptr := flag.String("hostname", "",
+		"Set the official host name for this server")
+	flag.Parse()
+	help := *helpptr
+	if help {
+		fmt.Printf("Usage of the AS112 responder:\n")
+		flag.PrintDefaults()
+		os.Exit(0)
+	}
+	if *emailptr != "" {
+		hostnamesoa.Rname = *emailptr
+	}
+	if *locationptr != "" {
+		hostnameAnswers[0] = *locationptr
+	}
+	if *hostnameptr != "" {
+		hostnamesoa.Mname = *hostnameptr
+	}
 }
