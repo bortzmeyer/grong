@@ -139,6 +139,7 @@ list of zones (all with identical data) and the IP address of the Web
 server being taken from a file or on the command-line.
 
 Configuration file. What is idiomatic in Go? .INI ?
+<https://github.com/cthom06/go-rproxy> uses JSON.
 
 Continue hardening against rogue packets. See the example
 test-scapy.py in the distribution.
