@@ -7,28 +7,35 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"flag"
+	"./myflag"
 	"fmt"
 	"net"
 	"os"
 	"strings"
 	"reflect"
+	"log"
+	"syslog"
 	"./responder"
 	"./types"
 )
 
 const defaultTTL = 3600
+const loggerOptions = log.Ldate | log.Ltime | log.Lshortfile
 
 var (
 	/* Configuration, indexed by keywords, for instance "debug" or
 	"servername" */
 	globalConfig map[string]interface{}
 	debug        int // Not mandatory but it is simpler to use than
-	// globalConfig["debug"], which has type interface{}
+	// globalConfig["debug"], which has type interface{}. Same thing for the
+	// others:
+	daemon                                bool
+	debuglogger, infologger, crisislogger *log.Logger
+	zone                                  string
 )
 
 func fatal(msg string) {
-	fmt.Fprintf(os.Stderr, "%s\n", msg)
+	crisislogger.Logf("%s\n", msg)
 	os.Exit(1)
 }
 
@@ -130,7 +137,7 @@ func readShortInteger(buf *bytes.Buffer) (uint16, bool) {
 	n, error := buf.Read(slice[0:2])
 	if error != nil || n != 2 {
 		if debug > 2 {
-			fmt.Printf("Error in Read of an int16: %s (%d bytes read)\n", error, n)
+			debuglogger.Logf("Error in Read of an int16: %s (%d bytes read)\n", error, n)
 		}
 		return 0, false
 	}
@@ -142,7 +149,7 @@ func readInteger(buf *bytes.Buffer) (uint32, bool) {
 	n, error := buf.Read(slice[0:4])
 	if error != nil || n != 4 {
 		if debug > 2 {
-			fmt.Printf("Error in Read of an int32: %s (%d bytes read)\n", error, n)
+			debuglogger.Logf("Error in Read of an int32: %s (%d bytes read)\n", error, n)
 		}
 		return 0, false
 	}
@@ -212,7 +219,7 @@ func parse(buf *bytes.Buffer) (types.DNSpacket, bool) {
 				return packet, false
 			} else {
 				if debug > 2 {
-					fmt.Printf("Error in ReadByte: %s\n", error)
+					debuglogger.Logf("Error in ReadByte: %s\n", error)
 				}
 				return packet, false
 			}
@@ -229,7 +236,7 @@ func parse(buf *bytes.Buffer) (types.DNSpacket, bool) {
 				return packet, false
 			} else {
 				if debug > 2 {
-					fmt.Printf("Error in Read %d bytes: %s\n", n, error)
+					debuglogger.Logf("Error in Read %d bytes: %s\n", n, error)
 				}
 				return packet, false
 			}
@@ -239,7 +246,11 @@ func parse(buf *bytes.Buffer) (types.DNSpacket, bool) {
 		labels[nlabels-1] = string(label)
 	}
 	packet.Qsection = make([]types.Qentry, packet.Qdcount)
-	packet.Qsection[0].Qname = strings.Join(labels, ".")
+	if len(labels) == 0 { // A special case, the root (see issue #4)
+		packet.Qsection[0].Qname = "."
+	} else {
+		packet.Qsection[0].Qname = strings.Join(labels, ".")
+	}
 	packet.Qsection[0].Qtype, ok = readShortInteger(buf)
 	if !ok {
 		return packet, false
@@ -255,14 +266,14 @@ func parse(buf *bytes.Buffer) (types.DNSpacket, bool) {
 				return packet, false
 			} else {
 				if debug > 2 {
-					fmt.Printf("Error in ReadByte: %s\n", error)
+					debuglogger.Logf("Error in ReadByte: %s\n", error)
 				}
 				return packet, false
 			}
 		}
 		if labelsize != 0 {
 			if debug > 2 {
-				fmt.Printf("Additional section with non-empty name\n")
+				debuglogger.Logf("Additional section with non-empty name\n")
 			}
 			return packet, false
 		}
@@ -293,7 +304,7 @@ func parse(buf *bytes.Buffer) (types.DNSpacket, bool) {
 						return packet, false
 					} else {
 						if debug > 2 {
-							fmt.Printf("Error in Read %d bytes: %s\n", n, error)
+							debuglogger.Logf("Error in Read %d bytes: %s\n", n, error)
 						}
 						return packet, false
 					}
@@ -317,21 +328,23 @@ func parse(buf *bytes.Buffer) (types.DNSpacket, bool) {
 						over = true
 					}
 					if debug > 3 {
-						fmt.Printf("EDNS option code %d\n", optcode)
+						debuglogger.Logf("EDNS option code %d\n", optcode)
 					}
 
 				}
 			}
 			if debug > 2 {
-				fmt.Printf("EDNS0 found, buffer size is %d, extended rcode is %d, ", packet.EdnsBufferSize, extrcode)
+				debuglogger.Logf("EDNS0 found, buffer size is %d, extended rcode is %d, ", packet.EdnsBufferSize, extrcode)
 				if ednslength > 0 {
-					fmt.Printf("length of options is %d\n", ednslength)
+					debuglogger.Logf("length of options is %d\n", ednslength)
 				} else {
-					fmt.Printf("no options\n")
+					debuglogger.Logf("no options\n")
 				}
 			}
 		} else {
-			// Ignore additional section if not EDNS
+			if debug > 2 {
+				debuglogger.Logf("Ignore additional section if not EDNS")
+			}
 		}
 	}
 	return packet, true
@@ -345,14 +358,17 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 	noresponse = true
 	packet, valid := parse(buf)
 	if !valid { // Invalid packet or client too impatient
+		if debug > 3 {
+			debuglogger.Logf("Invalid packet received\n")
+		}
 		return
 	}
 	if debug > 2 {
-		fmt.Printf("%s\n", packet)
+		debuglogger.Logf("%s\n", packet)
 	}
 	if packet.Query && packet.Opcode == types.STDQUERY {
 		if debug > 2 {
-			fmt.Printf("Replying with ID %d...\n", packet.Id)
+			debuglogger.Logf("Replying with ID %d...\n", packet.Id)
 		}
 		noresponse = false
 		response.Id = packet.Id
@@ -366,7 +382,7 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 		response.Edns = packet.Edns
 		response.Nsid = packet.Nsid
 		query.Client = remaddr
-		query.Qname = packet.Qsection[0].Qname
+		query.Qname = strings.ToLower(packet.Qsection[0].Qname)
 		query.Qclass = packet.Qsection[0].Qclass
 		query.Qtype = packet.Qsection[0].Qtype
 		if packet.Edns {
@@ -407,7 +423,7 @@ func generichandle(buf *bytes.Buffer, remaddr net.Addr) (response types.DNSpacke
 func udphandle(conn *net.UDPConn, remaddr net.Addr, buf *bytes.Buffer) {
 	var response types.DNSpacket
 	if debug > 1 {
-		fmt.Printf("%d bytes packet from %s\n", buf.Len(), remaddr)
+		debuglogger.Logf("%d bytes packet from %s\n", buf.Len(), remaddr)
 	}
 	response, noresponse := generichandle(buf, remaddr)
 	if !noresponse {
@@ -415,7 +431,7 @@ func udphandle(conn *net.UDPConn, remaddr net.Addr, buf *bytes.Buffer) {
 		_, error := conn.WriteTo(binaryresponse, remaddr)
 		if error != nil {
 			if debug > 2 {
-				fmt.Printf("Error in Write: %s\n", error)
+				debuglogger.Logf("Error in Write: %s\n", error)
 				return
 			}
 		}
@@ -425,13 +441,13 @@ func udphandle(conn *net.UDPConn, remaddr net.Addr, buf *bytes.Buffer) {
 
 func tcphandle(connection net.Conn) {
 	if debug > 1 {
-		fmt.Printf("TCP connection accepted from %s\n", connection.RemoteAddr())
+		debuglogger.Logf("TCP connection accepted from %s\n", connection.RemoteAddr())
 	}
 	smallbuf := make([]byte, 2)
 	n, error := connection.Read(smallbuf)
 	if error != nil {
 		if debug > 2 {
-			fmt.Printf("Cannot read message length from TCP connection: %s\n", error)
+			debuglogger.Logf("Cannot read message length from TCP connection: %s\n", error)
 			return
 		}
 	}
@@ -440,12 +456,12 @@ func tcphandle(connection net.Conn) {
 	n, error = connection.Read(message)
 	if error != nil {
 		if debug > 2 {
-			fmt.Printf("Cannot read message from TCP connection with %s: %s\n", connection.RemoteAddr(), error)
+			debuglogger.Logf("Cannot read message from TCP connection with %s: %s\n", connection.RemoteAddr(), error)
 			return
 		}
 	}
 	if debug > 1 {
-		fmt.Printf("%d bytes read from %s\n", n, connection.RemoteAddr())
+		debuglogger.Logf("%d bytes read from %s\n", n, connection.RemoteAddr())
 	}
 	response, noresponse := generichandle(bytes.NewBuffer(message), connection.RemoteAddr())
 	if !noresponse {
@@ -455,14 +471,14 @@ func tcphandle(connection net.Conn) {
 		n, error := connection.Write(shortbuf)
 		if n != 2 || error != nil {
 			if debug > 2 {
-				fmt.Printf("Error in TCP message length Write: %s\n", error)
+				debuglogger.Logf("Error in TCP message length Write: %s\n", error)
 				return
 			}
 		}
 		n, error = connection.Write(binaryresponse)
 		if error != nil {
 			if debug > 2 {
-				fmt.Printf("Error in TCP message Write: %s\n", error)
+				debuglogger.Logf("Error in TCP message Write: %s\n", error)
 				return
 			}
 		}
@@ -477,7 +493,7 @@ func tcpListener(address *net.TCPAddr, comm chan bool) {
 		connection, error := listener.Accept()
 		if error != nil {
 			if debug > 1 {
-				fmt.Printf("Cannot accept TCP connection: %s\n", error)
+				debuglogger.Logf("Cannot accept TCP connection: %s\n", error)
 				continue
 			}
 		}
@@ -496,7 +512,7 @@ func udpListener(address *net.UDPAddr, comm chan bool) {
 		n, remaddr, error := listener.ReadFrom(message)
 		if error != nil {
 			if debug > 1 {
-				fmt.Printf("Cannot read UDP from %s: %s\n", remaddr.String(), error)
+				debuglogger.Logf("Cannot read UDP from %s: %s\n", remaddr.String(), error)
 				continue
 			}
 		}
@@ -509,20 +525,57 @@ func udpListener(address *net.UDPAddr, comm chan bool) {
 
 func main() {
 	debugptr := flag.Int("debug", 0, "Set the debug level, the higher, the more verbose")
+	nodaemonptr := flag.Bool("nodaemon", false, "Run in the foreground and not as a daemon")
 	listen := flag.String("address", ":8053", "Set the port (+optional address) to listen at")
 	nameptr := flag.String("servername", "",
 		"Set the server name (and send it to clients)")
+	helpptr := flag.Bool("help", false, "Displays usage instructions")
+	zoneptr := flag.String("domain", "", "Set the name of the zone we are authoritative for")
+
 	flag.Parse()
+	help := *helpptr
+	if help {
+		fmt.Printf("Usage of %s:\n", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(0)
+	}
 	globalConfig = make(map[string]interface{})
+	namemsg := ""
 	if *nameptr != "" {
 		globalConfig["servername"] = *nameptr
+		namemsg = fmt.Sprintf(" %s", *nameptr)
+	}
+	zonemsg := ""
+	if *zoneptr != "" {
+		zone = strings.ToLower(*zoneptr)
+		globalConfig["zonename"] = zone
+		zonemsg = fmt.Sprintf(" on zone %s", zone)
 	}
 	debug = *debugptr
 	globalConfig["debug"] = *debugptr
+	globalConfig["daemon"] = !*nodaemonptr
+	daemon = !reflect.NewValue(*nodaemonptr).(*reflect.BoolValue).Get()
 	udpaddr, error := net.ResolveUDPAddr(*listen)
 	checkError(fmt.Sprintf("Cannot parse \"%s\": %s\n", *listen), error)
 	tcpaddr, error := net.ResolveTCPAddr(*listen)
 	checkError(fmt.Sprintf("Cannot parse \"%s\": %s\n", *listen), error)
+	if daemon {
+		debuglogger = syslog.NewLogger(syslog.LOG_DEBUG,
+			loggerOptions)
+		infologger = syslog.NewLogger(syslog.LOG_NOTICE,
+			loggerOptions)
+		crisislogger = syslog.NewLogger(syslog.LOG_CRIT,
+			loggerOptions)
+	} else {
+		debuglogger = log.New(os.Stderr, nil, "[DEBUG] ",
+			loggerOptions)
+		infologger = log.New(os.Stderr, nil, "[INFO] ",
+			loggerOptions)
+		crisislogger = log.New(os.Stderr, nil, "[FATAL] ",
+			loggerOptions)
+	}
+	responder.Init(flag.LastOption())
+	infologger.Logf("%s", fmt.Sprintf("Starting%s%s...", namemsg, zonemsg))
 	udpchan := make(chan bool)
 	go udpListener(udpaddr, udpchan)
 	tcpchan := make(chan bool)
@@ -531,4 +584,5 @@ func main() {
 	<-udpchan // Just to wait the listener, otherwise, the Go runtime ends
 	// even if there are live goroutines
 	<-tcpchan
+	infologger.Logf("%s", "Terminating...")
 }

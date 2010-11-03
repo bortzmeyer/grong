@@ -143,7 +143,10 @@ func Encode(name string) []byte {
 	var (
 		totalresult []byte
 	)
-	labels := strings.Split(name, ".", 0)
+	labels := make([]string, 0)
+	if name != "." { // The root is a special case. See issue #4
+		labels = strings.Split(name, ".", -1)
+	}
 	totallength := 0
 	totalresult = make([]byte, 256) // TODO what a waste
 	for _, label := range labels {

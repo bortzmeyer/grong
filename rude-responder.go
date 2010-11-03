@@ -12,4 +12,5 @@ func Respond(query types.DNSquery, config map[string]interface{}) types.DNSrespo
 	return result
 }
 
-func init() {}
+func Init(firstoption int) {
+}

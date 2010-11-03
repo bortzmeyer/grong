@@ -1,27 +1,29 @@
-include $(GOROOT)/src/Make.$(GOARCH)
+include $(GOROOT)/src/Make.inc
 
 TARBALL=/tmp/grong.tar.gz
+DEFAULTPORT=8053
 
-all: server
+all: grong
 
-test: server
-	./server -debug=4
+test: grong
+	@echo "Running server on port $(DEFAULTPORT)..."
+	./grong -debug=4 -nodaemon -address ":$(DEFAULTPORT)" -servername "grong.dns.test"
 
-server.$O: responder.$O types.$O
+server.$O: responder.$O types.$O myflag.$O
 
 responder.$O: types.$O
 
 %.$O: %.go 
 	${GC} $<
 
-server: server.$O
+grong: server.$O
 	${LD} -o $@ server.$O
 
 dist: distclean
 	(cd ..; tar czvf ${TARBALL} grong/*)
 
 clean:
-	rm -f server *.$O *.a
+	rm -f grong *.$O *.a
 
 distclean: clean
 	rm -f *~ responder.go
