@@ -172,6 +172,8 @@ http://github.com/hoisie/web.go/blob/master/Makefile
 4) Instead of main() method, there would be a method like Run( resp
 Responder ) that takes a responder and starts the server
 
+Rewrite a good part of Grong to use Go DNS? https://github.com/miekg/godns
+
 DNSSEC (no, I'm joking)
 
 
